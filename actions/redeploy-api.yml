@@ -1,0 +1,25 @@
+name: Redeploy API
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'inference/**'
+
+jobs:
+  redeploy-api:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Rebuild and redeploy API
+        run: |
+          cd inference
+          docker compose down
+          docker compose up --build -d
+
+      - name: Health check
+        run: |
+          sleep 5
+          curl --fail http://localhost:8000/docs || exit 1
