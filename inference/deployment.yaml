@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sound-api-deployment
+spec:
+  replicas: 2 # Dit draait 2 kopieën van je API voor betrouwbaarheid
+  selector:
+    matchLabels:
+      app: sound-api
+  template:
+    metadata:
+      labels:
+        app: sound-api
+    spec:
+      containers:
+      - name: api-container
+        image: robbeschroyen/sound-api:v9 # <--- JOUW IMAGE!
+        ports:
+        - containerPort: 8000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sound-api-service
+spec:
+  type: ClusterIP # Houdt de API veilig intern, NGINX praat hier straks mee
+  selector:
+    app: sound-api
+  ports:
+  - port: 8000
+    targetPort: 8000
