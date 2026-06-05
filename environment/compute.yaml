@@ -1,5 +1,5 @@
 $schema: https://azuremlschemas.azureedge.net/latest/computeInstance.schema.json
-name: cli-pierre-compute
+name: cli-project-compute
 type: computeinstance
 size: STANDARD_DS3_V2
 

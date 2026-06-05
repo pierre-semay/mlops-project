@@ -1,0 +1,23 @@
+$schema: https://azuremlschemas.azureedge.net/latest/commandComponent.schema.json
+
+name: training_project
+display_name: Training an AI model
+description: Trains an AI model by inputting a lot of training and testing data.
+version: 1
+
+type: command
+
+inputs:
+  data_dir:
+    type: uri_folder
+
+outputs:
+  output_folder:
+    type: uri_folder
+    mode: rw_mount
+
+code: ./code
+
+environment: azureml:project-env@latest
+
+command: python train.py --data_dir ${{inputs.data_dir}} --output_folder ${{outputs.output_folder}}
