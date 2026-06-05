@@ -1,0 +1,31 @@
+$schema: https://azuremlschemas.azureedge.net/latest/pipelineJob.schema.json
+
+type: pipeline
+display_name: Cough Classification Pipeline
+experiment_name: classification
+
+outputs:
+  model: 
+    mode: upload
+  registration_details:
+    mode: upload
+
+jobs:
+  training:
+    type: command
+    component: ./components/training/training.yaml
+    inputs:
+      training_folder: ${{parent.jobs.data_split.outputs.training_data}}
+      testing_folder: ${{parent.jobs.data_split.outputs.testing_data}}
+    outputs:
+      output_folder: ${{parent.outputs.model}}
+
+  register:
+    type: command
+    component: azureml://registries/azureml/components/register_model/versions/0.0.21
+    inputs:
+      model_name: cough-classification
+      model_type: custom_model
+      model_path: ${{parent.jobs.training.outputs.output_folder}}
+    outputs:
+      registration_details_folder: ${{ parent.outputs.registration_details }}
