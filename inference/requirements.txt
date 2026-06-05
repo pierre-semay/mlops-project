@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+python-multipart
+tensorflow-cpu
+tensorflow-hub
+librosa
+numpy
+scikit-learn>=1.8.0
+joblib
+psycopg2-binary
+setuptools<70.0.0

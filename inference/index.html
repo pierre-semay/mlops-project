@@ -1,0 +1,121 @@
+
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medische Geluid Classificatie</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="bg-gray-100 min-h-screen py-10 px-5       ">
+
+    <div class="max-w-3xl mx-auto bg-white rounded-xl shadow-md overflow-hidden p-8">
+        <h1 class="text-3xl font-bold text-gray-800 mb-2 text-center">Medische Geluid Analyser</h1>
+        <p class="text-gray-600 mb-8 text-center">Vul de patiëntgegevens in en upload een hoest- of ademhalingsgeluid (.wav) voor analyse.</p>
+
+        <form id="predictionForm" class="space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Leeftijd (Age)</label>
+                    <input type="number" name="age" step="1" required class="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500" placeholder="Bijv. 45">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Rookjaren (Pack Years)</label>
+                    <input type="number" name="packYears" step="0.1" required class="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500" placeholder="Bijv. 10.5">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Geslacht (Gender)</label>
+                    <select name="gender" required class="w-full border border-gray-300 rounded-lg p-2.5 bg-white"><option value="0">Man (0)</option><option value="1">Vrouw (1)</option></select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">TB Contact Historie</label>
+                    <select name="tbContactHistory" required class="w-full border border-gray-300 rounded-lg p-2.5 bg-white"><option value="0">Nee (0)</option><option value="1">Ja (1)</option></select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Piepende Ademhaling</label>
+                    <select name="wheezingHistory" required class="w-full border border-gray-300 rounded-lg p-2.5 bg-white"><option value="0">Nee (0)</option><option value="1">Ja (1)</option></select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Slijmhoest (Phlegm)</label>
+                    <select name="phlegmCough" required class="w-full border border-gray-300 rounded-lg p-2.5 bg-white"><option value="0">Nee (0)</option><option value="1">Ja (1)</option></select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Astma in Familie</label>
+                    <select name="familyAsthmaHistory" required class="w-full border border-gray-300 rounded-lg p-2.5 bg-white"><option value="0">Nee (0)</option><option value="1">Ja (1)</option></select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Koorts Historie</label>
+                    <select name="feverHistory" required class="w-full border border-gray-300 rounded-lg p-2.5 bg-white"><option value="0">Nee (0)</option><option value="1">Ja (1)</option></select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Verkoudheid Nu</label>
+                    <select name="coldPresent" class="w-full border border-gray-300 rounded-lg p-2.5 bg-white"><option value="">Onbekend / Leeg</option><option value="0">Nee (0)</option><option value="1">Ja (1)</option></select>
+                </div>
+            </div>
+
+            <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center bg-gray-50">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Selecteer Audiobestand (.wav)</label>
+                <input type="file" id="audioFile" name="file" accept=".wav" required class="mx-auto block text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+            </div>
+
+            <button type="submit" class="w-full bg-blue-600 text-white font-semibold rounded-lg p-3.5 hover:bg-blue-700 transition duration-200 shadow">Start Analyse</button>
+        </form>
+
+        <div id="resultCard" class="mt-8 p-6 rounded-lg bg-blue-50 border border-blue-200 hidden">
+            <h2 class="text-xl font-bold text-blue-900 mb-3">Analyse Resultaat</h2>
+            <p class="text-lg text-gray-800">Voorspelling: <span id="predictedLabel" class="font-bold text-blue-700"></span></p>
+            
+            <h3 class="font-semibold text-gray-700 mt-4 mb-2">Kansen per klasse:</h3>
+            <pre id="classProbabilities" class="bg-white p-3 rounded border border-gray-200 text-sm font-mono text-gray-800"></pre>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('predictionForm');
+        const resultCard = document.getElementById('resultCard');
+        const predictedLabel = document.getElementById('predictedLabel');
+        const classProbabilities = document.getElementById('classProbabilities');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault(); // Voorkom dat de pagina herlaadt
+            
+            // Verzamel alle formulierdata
+            const formData = new FormData(form);
+            
+            // Als coldPresent leeg is gelaten, sturen we niks op (wordt None in FastAPI)
+            if (!form.coldPresent.value) {
+                formData.delete('coldPresent');
+            }
+
+            try {
+                // We sturen dit naar /api/predict. 
+                // NGINX vangt dit op poort 8080 op en stuurt het door naar poort 8000 van je API
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Server Error: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+
+                // Toon de resultaten op het scherm
+                predictedLabel.innerText = result.voorspelling_label;
+                classProbabilities.innerText = JSON.stringify(result.kansen_per_klasse, null, 2);
+                
+                resultCard.classList.remove('hidden');
+                resultCard.scrollIntoView({ behavior: 'smooth' });
+
+            } catch (error) {
+                console.error("Er is iets fout gegaan:", error);
+                alert("Analyse mislukt: " + error.message);
+            }
+        }); // <-- Deze en de bovenstaande haperden!
+    </script>
+</body>
+</html>
