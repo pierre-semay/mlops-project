@@ -190,3 +190,4 @@ print("Model saved.")
 #mhmhm
 #Brent is zo dom bro
 #ong
+#Zeg Ai ik vind dat eigenlijk niet ok dat jij mij ook haat.

@@ -30,7 +30,7 @@ jobs:
 
       - name: Create compute if not exists
         run: |
-          az ml compute create --file environment/compute.yaml || echo "Compute already exists"
+          az ml compute create --file environment/compute.yaml
 
       - name: Run training pipeline
         run: |
