@@ -182,3 +182,4 @@ print("Model saved.")
 #tja niets aan te doen zeker
 #goja het mag wel bijna beginnen werken hoor
 #het duurt inderdaad wel heel lang
+#idd
