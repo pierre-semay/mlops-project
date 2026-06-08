@@ -1,25 +1,49 @@
-name: Redeploy API
+name: MLOps CI/CD Pipeline
 
+# Trigger the workflow every time you push to the main branch
 on:
   push:
-    branches: [main]
-    paths:
-      - 'inference/**'
+    branches: [ "main" ]
 
 jobs:
-  redeploy-api:
-    runs-on: self-hosted
+  build-and-push:
+    runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    - name: Checkout repository code
+      uses: actions/checkout@v4
 
-      - name: Rebuild and redeploy API
-        run: |
-          cd inference
-          docker compose down
-          docker compose up --build -d
+    # Step 1: Set up Docker Buildx (essential for efficient layer caching)
+    - name: Set up Docker Buildx
+      uses: actions/setup-buildx-action@v3
 
-      - name: Health check
-        run: |
-          sleep 5
-          curl --fail http://localhost:8000/docs || exit 1
+    # Step 2: Log in to Docker Hub using secure Github Secrets
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_HUB_USERNAME }}
+        password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+
+    # Step 3: Extract metadata (tags, labels) for Docker
+    # This automatically tags your image with 'latest' and the specific git commit hash
+    - name: Extract Docker metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: robbeschroyen/sound-api
+        tags: |
+          type=raw,value=latest
+          type=sha,format=short
+
+    # Step 4: Build and Push the Docker Image
+    # This uses GitHub's cache system so it won't rebuild your 2.5GB TensorFlow layers from scratch!
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        push: true
+        tags: ${{ id.meta.outputs.tags }}
+        labels: ${{ id.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
