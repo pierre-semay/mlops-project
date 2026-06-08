@@ -22,6 +22,7 @@ jobs:
 
       - name: Configure Azure ML defaults
         run: |
+          echo "Configuring Azure ML defaults..."
           az configure --defaults group=azure-ai workspace=brent-develter-ml location=francecentral
 
       - name: Create compute if not exists
