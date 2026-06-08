@@ -80,19 +80,15 @@
         const classProbabilities = document.getElementById('classProbabilities');
 
         form.addEventListener('submit', async (e) => {
-            e.preventDefault(); // Voorkom dat de pagina herlaadt
+            e.preventDefault();
             
-            // Verzamel alle formulierdata
             const formData = new FormData(form);
             
-            // Als coldPresent leeg is gelaten, sturen we niks op (wordt None in FastAPI)
             if (!form.coldPresent.value) {
                 formData.delete('coldPresent');
             }
 
             try {
-                // We sturen dit naar /api/predict. 
-                // NGINX vangt dit op poort 8080 op en stuurt het door naar poort 8000 van je API
                 const response = await fetch('/predict', {
                     method: 'POST',
                     body: formData
@@ -104,7 +100,6 @@
 
                 const result = await response.json();
 
-                // Toon de resultaten op het scherm
                 predictedLabel.innerText = result.voorspelling_label;
                 classProbabilities.innerText = JSON.stringify(result.kansen_per_klasse, null, 2);
                 
@@ -115,7 +110,7 @@
                 console.error("Er is iets fout gegaan:", error);
                 alert("Analyse mislukt: " + error.message);
             }
-        }); // <-- Deze en de bovenstaande haperden!
+        });
     </script>
 </body>
 </html>

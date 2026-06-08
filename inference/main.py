@@ -1,4 +1,3 @@
-# main.py
 import os
 import joblib
 import librosa
@@ -9,9 +8,8 @@ import tensorflow as tf
 import tensorflow_hub as hub
 from fastapi import FastAPI, UploadFile, File, Form
 import keras
-import psycopg2 # <-- NIEUW: Database driver
+import psycopg2
 
-# --- MLOPS TRICK: BYPASS KERAS CONFIGURATION DESERIALIZATION BUG ---
 @keras.saving.register_keras_serializable(package="Custom")
 class CustomDense(keras.layers.Dense):
     @classmethod
@@ -21,7 +19,6 @@ class CustomDense(keras.layers.Dense):
         return super().from_config(config)
 
 keras.saving.get_custom_objects()['Dense'] = CustomDense
-# ------------------------------------------------------------------
 
 app = FastAPI(title="Medical Sound Classification API")
 
@@ -42,11 +39,8 @@ CLASS_MAPPING = {
     2: "Ziekte 2",
 }
 
-# --- DATABASE INITIALISATIE ---
-# Kubernetes DNS zorgt ervoor dat we de database simpelweg kunnen bereiken via de servicenaam.
-# Vervang deze waarden als je in database.yaml andere credentials hebt gebruikt!
-DB_HOST = "postgres-service"  # De naam van je Kubernetes Database Service
-DB_NAME = "sound_classification"          # Of de naam van je database
+DB_HOST = "postgres-service"
+DB_NAME = "sound_classification"
 DB_USER = "mlops_user"
 DB_PASS = "mlops_password"
 
@@ -81,9 +75,7 @@ def init_db():
     except Exception as e:
         print(f"WAARSCHUWING: Kon niet verbinden met de database tijdens opstarten: {e}")
 
-# Voer de database-initialisatie direct uit bij het laden van het script
 init_db()
-# --------------------------------
 
 @app.get("/", response_class=HTMLResponse)
 async def read_index():
@@ -151,7 +143,6 @@ async def predict(
         for i, prob in enumerate(confidence_scores)
     }
 
-    # --- NIEUW: LOG DE INFERENCE NAAR POSTGRESQL (ZONDER FILENAME) ---
     try:
         conn = psycopg2.connect(host=DB_HOST, database=DB_NAME, user=DB_USER, password=DB_PASS)
         cursor = conn.cursor()
@@ -172,7 +163,6 @@ async def predict(
         print("Inference succesvol opgeslagen in de database (zonder bestandsnaam).")
     except Exception as db_error:
         print(f"FOUT: Kon inference niet opslaan in database: {db_error}")
-    # -------------------------------------------------
 
     return {
         "voorspelling_index": predicted_class_idx,
