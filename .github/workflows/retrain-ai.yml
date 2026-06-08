@@ -13,19 +13,18 @@ jobs:
     runs-on: self-hosted
     defaults:
       run:
-        shell: bash
+        shell: powershell
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Check secret exists
         run: |
-          if [ -z "${{ secrets.AZURE_CREDENTIALS }}" ]; then
-            echo "SECRET IS EMPTY"
-          else
-            echo "SECRET EXISTS"
-          fi
-        shell: bash
+          if ("${{ secrets.AZURE_CREDENTIALS }}" -eq "") {
+            Write-Host "SECRET IS EMPTY"
+          } else {
+            Write-Host "SECRET EXISTS"
+          }
 
       - name: Azure CLI login
         uses: azure/login@v1.6.1
