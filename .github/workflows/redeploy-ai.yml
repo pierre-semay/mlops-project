@@ -28,7 +28,7 @@ jobs:
           az ml model download \
             --name animal-classification \
             --version $(az ml model list --name animal-classification --query "[0].version" -o tsv) \
-            --download-path ./inference
+            --download-path ./inference/models
 
       - name: Restart API container with new model
         run: |

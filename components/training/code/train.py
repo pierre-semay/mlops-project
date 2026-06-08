@@ -174,3 +174,5 @@ lstm_model.save(os.path.join(args.output_folder, "lstm_model.keras"))
 joblib.dump(scaler, os.path.join(args.output_folder, "scaler.pkl"))
 joblib.dump(le, os.path.join(args.output_folder, "label_encoder.pkl"))
 print("Model saved.")
+
+#hallo dit is een test

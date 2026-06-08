@@ -16,7 +16,7 @@ outputs:
     mode: upload
 
 settings:
-  default_compute: azureml:cpu-brent-auto #maak hier later een default van
+  default_compute: azureml:cli-project-compute #maak hier later een default van
 
 jobs:
   training:
