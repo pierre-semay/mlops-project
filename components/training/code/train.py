@@ -180,3 +180,4 @@ print("Model saved.")
 #wow zo toevallig, dit is ook een test!
 #ik begin dit wel een beetje te veel te vinden.
 #tja niets aan te doen zeker
+#goja het mag wel bijna beginnen werken hoor
