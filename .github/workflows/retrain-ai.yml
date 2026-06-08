@@ -18,16 +18,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Check secret exists
-        run: |
-          if ("${{ secrets.AZURE_CREDENTIALS }}" -eq "") {
-            Write-Host "SECRET IS EMPTY"
-          } else {
-            Write-Host "SECRET EXISTS"
-          }
-
       - name: Azure CLI login
-        uses: azure/login@v1.6.1
+        uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
