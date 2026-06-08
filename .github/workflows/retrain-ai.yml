@@ -17,12 +17,12 @@ jobs:
 
       - name: Check secret exists
         run: |
-          if ("${{ secrets.AZURE_CREDENTIALS }}" -eq "") {
-            Write-Host "SECRET IS EMPTY"
-          } else {
-            Write-Host "SECRET EXISTS"
-          }
-        shell: pwsh
+          if [ -z "${{ secrets.AZURE_CREDENTIALS }}" ]; then
+            echo "SECRET IS EMPTY"
+          else
+            echo "SECRET EXISTS"
+          fi
+        shell: bash
 
       - name: Azure CLI login
         uses: azure/login@v1.6.1
