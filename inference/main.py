@@ -46,9 +46,9 @@ CLASS_MAPPING = {
 # Kubernetes DNS zorgt ervoor dat we de database simpelweg kunnen bereiken via de servicenaam.
 # Vervang deze waarden als je in database.yaml andere credentials hebt gebruikt!
 DB_HOST = "postgres-service"  # De naam van je Kubernetes Database Service
-DB_NAME = "postgres"          # Of de naam van je database
-DB_USER = "postgres"
-DB_PASS = "postgres"
+DB_NAME = "sound_classification"          # Of de naam van je database
+DB_USER = "mlops_user"
+DB_PASS = "mlops_password"
 
 def init_db():
     """Maakt de tabel aan voor het loggen van vragen en antwoorden als deze nog niet bestaat."""
@@ -151,7 +151,7 @@ async def predict(
         for i, prob in enumerate(confidence_scores)
     }
 
-    # --- NIEUW: LOG DE INFERENCE NAAR POSTGRESQL ---
+    # --- NIEUW: LOG DE INFERENCE NAAR POSTGRESQL (ZONDER FILENAME) ---
     try:
         conn = psycopg2.connect(host=DB_HOST, database=DB_NAME, user=DB_USER, password=DB_PASS)
         cursor = conn.cursor()
@@ -159,20 +159,18 @@ async def predict(
             INSERT INTO inference_logs (
                 age, gender, tb_contact_history, wheezing_history, phlegm_cough,
                 family_asthma_history, fever_history, cold_present, pack_years,
-                filename, predicted_index, predicted_label, confidence_scores
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+                predicted_index, predicted_label, confidence_scores
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
         """, (
             age, gender, tbContactHistory, wheezingHistory, phlegmCough,
             familyAsthmaHistory, feverHistory, coldPresent_value, packYears,
-            file.filename, predicted_class_idx, predicted_label, str(kansen_per_klasse)
+            predicted_class_idx, predicted_label, str(kansen_per_klasse)
         ))
         conn.commit()
         cursor.close()
         conn.close()
-        print(f"Inference succesvol opgeslagen in de database voor bestand: {file.filename}")
+        print("Inference succesvol opgeslagen in de database (zonder bestandsnaam).")
     except Exception as db_error:
-        # We catchen de error zodat de gebruiker wel gewoon zijn antwoord krijgt, 
-        # zelfs als de database een keertje haperend reageert.
         print(f"FOUT: Kon inference niet opslaan in database: {db_error}")
     # -------------------------------------------------
 

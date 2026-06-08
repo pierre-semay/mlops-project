@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: api-container
-        image: robbeschroyen/sound-api:v9 # <--- JOUW IMAGE!
+        image: robbeschroyen/sound-api:v12 # <--- JOUW IMAGE!
         ports:
         - containerPort: 8000
 ---
