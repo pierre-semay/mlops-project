@@ -1,9 +1,8 @@
 $schema: https://azuremlschemas.azureedge.net/latest/commandComponent.schema.json
 
-name: training_project
-display_name: Training an AI model
-description: Trains an AI model by inputting a lot of training and testing data.
-version: 2
+name: train_test_split
+display_name: Train Test Split
+version: 1
 
 type: command
 
@@ -20,4 +19,7 @@ code: ./code
 
 environment: azureml:project-env@latest
 
-command: python train.py --data_dir ${{inputs.data_dir}} --output_folder ${{outputs.output_folder}}
+command: >
+  python train_test_split.py
+  --data_dir ${{inputs.data_dir}}
+  --output_folder ${{outputs.output_folder}}
