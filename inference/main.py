@@ -12,7 +12,6 @@ if 'keras.src.engine' not in sys.modules:
 if 'keras.src.engine.functional' not in sys.modules:
     functional_module = ModuleType('keras.src.engine.functional')
     sys.modules['keras.src.engine.functional'] = functional_module
-    # Map de oude Functional klasse direct naar het Keras 3 Model
     functional_module.Functional = keras.Model
 
 # Patch 1: Sloop de verouderde 'time_major' parameter live uit de LSTM-laag (Model B)
@@ -31,6 +30,17 @@ def patched_bn_init(self, *args, **kwargs):
         kwargs['axis'] = kwargs['axis'][0]  # Zet [2] om naar 2
     original_bn_init(self, *args, **kwargs)
 keras.layers.BatchNormalization.__init__ = patched_bn_init
+
+# Patch 3: Forceer de build-status van lagen zodat Keras 3 geen ValueError opgooit over ontbrekende gewichten
+original_layer_from_config = keras.layers.Layer.from_config
+@classmethod
+def patched_layer_from_config(cls, config):
+    # Als er build_config in de opgeslagen JSON staat, halen we die weg 
+    # Dit dwingt Keras 3 om de laag dynamisch te her-scaffolden met de juiste variabelen
+    if 'build_config' in config:
+        del config['build_config']
+    return original_layer_from_config(config)
+keras.layers.Layer.from_config = patched_layer_from_config
 # ----------------------------------------------------------------------
 
 import joblib
