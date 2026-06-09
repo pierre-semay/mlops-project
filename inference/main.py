@@ -21,17 +21,17 @@ def structural_axis_patcher(config, *args, **kwargs):
         class_name = config.get("class_name")
         inner_cfg = config.get("config", {})
         
-        # A. Clean immediate class layer configurations
+        # Force a unique naming scheme for both layers to prevent graph collisions
         if class_name == "LSTM":
             config["config"]["name"] = "lstm_cell_1"
-            # Keep the inner cell layer name unique to prevent graph collisions
             if "cell" in config["config"] and "config" in config["config"]["cell"]:
-                config["config"]["cell"]["config"]["name"] = "lstm_cell"
+                config["config"]["cell"]["config"]["name"] = "lstm_cell_internal_0"
                 
-        if class_name == "Dense" or config.get("name") == "dense_1":
-            config["config"]["name"] = "dense_1"
-        if class_name == "Dense" or config.get("name") == "dense_2":
-            config["config"]["name"] = "dense_2"
+        if class_name == "Dense":
+            if config.get("name") in ["dense", "dense_1"]:
+                config["config"]["name"] = "dense_1"
+            elif config.get("name") == "dense_2":
+                config["config"]["name"] = "dense_2"
 
         if class_name == "BatchNormalization" and isinstance(inner_cfg.get("axis"), list):
             inner_cfg["axis"] = inner_cfg["axis"][0] if inner_cfg["axis"] else 2
@@ -39,7 +39,7 @@ def structural_axis_patcher(config, *args, **kwargs):
         if class_name == "LSTM" and "time_major" in inner_cfg:
             inner_cfg.pop("time_major", None)
 
-        # B. Clean nested operational layers inside functional schemas
+        # Process nested functional layer list configurations
         if isinstance(inner_cfg, dict) and "layers" in inner_cfg:
             for layer in inner_cfg["layers"]:
                 l_name = layer.get("class_name")
@@ -48,12 +48,13 @@ def structural_axis_patcher(config, *args, **kwargs):
                 if l_name == "LSTM":
                     layer["config"]["name"] = "lstm_cell_1"
                     if "cell" in layer["config"] and "config" in layer["config"]["cell"]:
-                        layer["config"]["cell"]["config"]["name"] = "lstm_cell"
+                        layer["config"]["cell"]["config"]["name"] = "lstm_cell_internal_0"
                         
-                if l_name == "Dense" or layer.get("name") == "dense_1":
-                    layer["config"]["name"] = "dense_1"
-                if l_name == "Dense" or layer.get("name") == "dense_2":
-                    layer["config"]["name"] = "dense_2"
+                if l_name == "Dense":
+                    if layer.get("name") in ["dense", "dense_1"]:
+                        layer["config"]["name"] = "dense_1"
+                    elif layer.get("name") == "dense_2":
+                        layer["config"]["name"] = "dense_2"
 
                 if l_name == "BatchNormalization" and isinstance(l_cfg.get("axis"), list):
                     l_cfg["axis"] = l_cfg["axis"][0] if l_cfg["axis"] else 2
@@ -63,7 +64,6 @@ def structural_axis_patcher(config, *args, **kwargs):
                         
     return original_deserialize(config, *args, **kwargs)
 
-# Bind our patch into the core execution lookup map of Keras 3
 serialization.deserialize_keras_object = structural_axis_patcher
 
 from fastapi import FastAPI, UploadFile, File, Form
@@ -103,7 +103,7 @@ async def lifespan(app: FastAPI):
     
     scaler = joblib.load(SCALER_PATH)
     
-    # Native loading works flawlessly now because our patch renames variables on the fly
+    # Let Keras 3 load natively while our global patch aligns the configurations on the fly
     model_a = keras.models.load_model(MODEL_A_PATH, compile=False)
     model_b = keras.models.load_model(MODEL_B_PATH, compile=False)
 
@@ -203,4 +203,4 @@ async def predict_model_b(
     label = CLASS_MAPPING.get(idx, f"Onbekend ({idx})")
     kansen = {CLASS_MAPPING.get(i, f"Klasse {i}"): round(p, 3) for i, p in enumerate(scores)}
     log_to_db(age, gender, tbContactHistory, wheezingHistory, phlegmCough, familyAsthmaHistory, feverHistory, coldPresent, packYears, idx, label, kansen, "Model B")
-    return {"voorspelling_index": idx, "voorspelling_label": label, "kansen_per_klasse": kansen, "model_gebruikt": "Model B"}
+    return {"voorspelling_index": idx, "voorspelling_label": label, "kansen_per_klasse": kansen, "model_gebruikt": "Model B"}# Force clean pipeline run v14
