@@ -10,7 +10,7 @@ import tensorflow_hub as hub
 from fastapi import FastAPI, UploadFile, File, Form
 import keras
 import psycopg2
-import os
+import sys
 
 # --- MLOPS TRICK: BYPASS KERAS ARCHITECTURE VERSION MISMATCHES ---
 # We maken een virtuele module aan om Keras te foppen als hij zoekt naar de oude 'keras.src.engine'
