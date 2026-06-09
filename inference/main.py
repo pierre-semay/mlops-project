@@ -10,8 +10,22 @@ import tensorflow_hub as hub
 from fastapi import FastAPI, UploadFile, File, Form
 import keras
 import psycopg2
+import sys
 
-# --- MLOPS TRICK: BYPASS KERAS CONFIGURATION DESERIALIZATION BUG ---
+# --- MLOPS FIX: BRUG TUSSEN AZURE (KERAS 2) EN PRODUCTION (KERAS 3) ---
+# We maken dummy modules aan zodat het Azure-model zijn oude paden herkent
+from types import ModuleType
+if 'keras.src.engine' not in sys.modules:
+    engine_module = ModuleType('keras.src.engine')
+    sys.modules['keras.src.engine'] = engine_module
+    
+    functional_module = ModuleType('keras.src.engine.functional')
+    sys.modules['keras.src.engine.functional'] = functional_module
+    
+    # Koppel het oude concept 'Functional' aan de nieuwe Keras 3 variant
+    functional_module.Functional = keras.Model
+
+# Behoud de eerdere CustomDense fix voor de quantisatie-fout uit Windows/Azure
 @keras.saving.register_keras_serializable(package="Custom")
 class CustomDense(keras.layers.Dense):
     @classmethod
@@ -27,14 +41,21 @@ app = FastAPI(title="Medical Sound Classification API")
 
 # Paden naar de twee verschillende modellen
 MODEL_A_PATH = "best_model_lstm.keras"
-MODEL_B_PATH = "best_model_lstm_1.keras"  # <-- VUL HIER DE NAAM VAN MODEL B IN
+MODEL_B_PATH = "models/cough-classification/INPUT_model_path/lstm_model.keras"
 SCALER_PATH = "scaler_lstm_experiment.pkl"
+
+# main.py
 
 print("Bezig met het laden van de Keras Modellen en de Scaler...")
 scaler = joblib.load(SCALER_PATH)
+
+# Model A (LSTM) laden
 model_a = keras.models.load_model(MODEL_A_PATH, custom_objects={"Dense": CustomDense})
-model_b = keras.models.load_model(MODEL_B_PATH, custom_objects={"Dense": CustomDense}) # <-- Model B ingeladen
-print("Modellen succesvol geladen!")
+print("Model A succesvol geladen!")
+
+# Model B (Azure Functional) veilig laden zonder compiler-ruis
+model_b = keras.models.load_model(MODEL_B_PATH, compile=False, custom_objects={"Dense": CustomDense})
+print("Model B (Azure Functional) succesvol geladen en geactiveerd!")
 
 print("Bezig met het laden van YAMNet van TensorFlow Hub...")
 yamnet_model = hub.load('https://tfhub.dev/google/yamnet/1')
