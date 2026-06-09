@@ -44,11 +44,29 @@ MODEL_A_PATH = "best_model_lstm.keras"
 MODEL_B_PATH = "models/cough-classification/INPUT_model_path/lstm_model.keras"  # <-- VUL HIER DE NAAM VAN MODEL B IN
 SCALER_PATH = "scaler_lstm_experiment.pkl"
 
+# main.py
+
 print("Bezig met het laden van de Keras Modellen en de Scaler...")
 scaler = joblib.load(SCALER_PATH)
-model_a = keras.models.load_model(MODEL_A_PATH, custom_objects={"Dense": CustomDense})
-model_b = keras.models.load_model(MODEL_B_PATH, custom_objects={"Dense": CustomDense}) # <-- Model B ingeladen
-print("Modellen succesvol geladen!")
+
+# Model A (LSTM) veilig laden
+try:
+    model_a = keras.models.load_model(MODEL_A_PATH, custom_objects={"Dense": CustomDense})
+    print("Model A (LSTM) succesvol geladen!")
+except Exception as e:
+    print(f"CRITIEKE FOUT: Kon Model A niet laden: {e}")
+    model_a = None
+
+# Model B veilig laden met fallback om crashes te voorkomen
+try:
+    # Verwijder eventueel de sys.modules aliasing die we hiervoor hebben geprobeerd, 
+    # Keras 3 heeft een ingebouwde legacy compile modus:
+    model_b = keras.models.load_model(MODEL_B_PATH, compile=False, custom_objects={"Dense": CustomDense})
+    print("Model B succesvol geladen (uncompiled fallback)!")
+except Exception as e:
+    print(f"WAARSCHUWING: Model B is corrupt of incompatibel met deze Keras-versie: {e}")
+    print("Systeem start door ZONDER Model B om cluster-downtime te voorkomen.")
+    model_b = None
 
 print("Bezig met het laden van YAMNet van TensorFlow Hub...")
 yamnet_model = hub.load('https://tfhub.dev/google/yamnet/1')
