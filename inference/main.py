@@ -23,8 +23,7 @@ class DummyModule:
 # Koppel de moderne Functional klasse aan de oude verwachting van Model B
 sys.modules['keras.src.engine'] = DummyModule
 sys.modules['keras.src.engine.functional'] = DummyModule
-DummyModule.Functional = keras.src.models.Functional
-
+DummyModule.Functional = keras.models.Functional
 
 @keras.saving.register_keras_serializable(package="Custom")
 class CustomDense(keras.layers.Dense):
