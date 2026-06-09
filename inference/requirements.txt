@@ -1,11 +1,10 @@
-fastapi
-uvicorn
-python-multipart
-tensorflow-cpu
-tensorflow-hub
-librosa
-numpy
-scikit-learn>=1.8.0
-joblib
-psycopg2-binary
-setuptools<70.0.0
+fastapi>=0.100.0
+uvicorn>=0.22.0
+pydantic>=2.0
+librosa>=0.10.0
+numpy>=1.23.5,<2.0.0
+scikit-learn>=1.2.0
+tensorflow==2.15.0      # <-- DIT IS DE CRUCIALE FIX!
+tensorflow-hub>=0.13.0
+psycopg2-binary>=2.9.6
+joblib>=1.2.0

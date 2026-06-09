@@ -4,67 +4,27 @@ import joblib
 import librosa
 from fastapi.responses import HTMLResponse
 import numpy as np
-from pydantic import BaseModel
 import tensorflow as tf
 import tensorflow_hub as hub
 from fastapi import FastAPI, UploadFile, File, Form
-import keras
+import tensorflow.keras as keras  # Merk op: we importeren keras via tensorflow!
 import psycopg2
-import sys
-
-# --- MLOPS FIX: WATERDICHTE COUPLING TUSSEN AZURE EN KERAS 3 ---
-from types import ModuleType
-
-if 'keras.src.engine' not in sys.modules:
-    sys.modules['keras.src.engine'] = ModuleType('keras.src.engine')
-
-if 'keras.src.engine.functional' not in sys.modules:
-    functional_module = ModuleType('keras.src.engine.functional')
-    sys.modules['keras.src.engine.functional'] = functional_module
-    functional_module.Functional = keras.Model
-
-# 1. Bestaande Dense fix voor quantisatie-fouten
-@keras.saving.register_keras_serializable(package="Custom")
-class CustomDense(keras.layers.Dense):
-    @classmethod
-    def from_config(cls, config):
-        if 'quantization_config' in config:
-            del config['quantization_config']
-        return super().from_config(config)
-
-# 2. NIEUW: LSTM fix die de verouderde 'time_major' parameter onderschept en wist
-@keras.saving.register_keras_serializable(package="Custom")
-class CustomLSTM(keras.layers.LSTM):
-    @classmethod
-    def from_config(cls, config):
-        if 'time_major' in config:
-            del config['time_major'] # Sloop de illegale parameter weg voor Keras 3!
-        return super().from_config(config)
-
-# Registreer de custom lagen in de Keras objecten-omgeving
-keras.saving.get_custom_objects()['Dense'] = CustomDense
-keras.saving.get_custom_objects()['LSTM'] = CustomLSTM
-# ------------------------------------------------------------------
 
 app = FastAPI(title="Medical Sound Classification API")
 
-# Paden naar de twee verschillende modellen
 MODEL_A_PATH = "best_model_lstm.keras"
 MODEL_B_PATH = "models/cough-classification/INPUT_model_path/lstm_model.keras"
 SCALER_PATH = "scaler_lstm_experiment.pkl"
 
-# main.py
-
 print("Bezig met het laden van de Keras Modellen en de Scaler...")
 scaler = joblib.load(SCALER_PATH)
 
-# Model A (LSTM) laden
-model_a = keras.models.load_model(MODEL_A_PATH, custom_objects={"Dense": CustomDense})
+# Beide modellen laden we nu puur en direct in
+model_a = keras.models.load_model(MODEL_A_PATH)
 print("Model A succesvol geladen!")
 
-# Model B (Azure Functional) veilig laden zonder compiler-ruis
-model_b = keras.models.load_model(MODEL_B_PATH, compile=False, custom_objects={"Dense": CustomDense})
-print("Model B (Azure Functional) succesvol geladen en geactiveerd!")
+model_b = keras.models.load_model(MODEL_B_PATH)
+print("Model B (Azure) succesvol geladen!")
 
 print("Bezig met het laden van YAMNet van TensorFlow Hub...")
 yamnet_model = hub.load('https://tfhub.dev/google/yamnet/1')
