@@ -62,7 +62,7 @@ SCALER_PATH = os.getenv("SCALER_PATH", "scaler_lstm_experiment.pkl")
 CLASS_MAPPING = {
     0: "Gezond",
     1: "Ziekte 1",
-    2: "Ziekte 2",
+    2: "Ziekte 67",
 }
 
 DB_HOST = os.getenv("DB_HOST", "postgres-service")  
