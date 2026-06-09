@@ -13,21 +13,15 @@ from fastapi import FastAPI, UploadFile, File, Form
 import psycopg2
 
 app = FastAPI(title="Medical Sound Classification API")
-
-MODEL_A_PATH = "models/cough-classification-cnn/INPUT_model_path/1dcnn_model.keras"
-MODEL_B_PATH = "models/cough-classification-lstm/INPUT_model_path/lstm_model.keras"
-SCALER_PATH = "scaler_lstm_experiment.pkl"
+MODEL_A_PATH = os.getenv("MODEL_A_PATH", "models/cough-classification-cnn/INPUT_model_path/1dcnn_model.keras")
+MODEL_B_PATH = os.getenv("MODEL_B_PATH", "models/cough-classification-lstm/INPUT_model_path/lstm_model.keras")
+SCALER_PATH = os.getenv("SCALER_PATH", "scaler_lstm_experiment.pkl")
 keras.backend.clear_session()
 print("Bezig met het laden van de Keras Modellen en de Scaler...")
 scaler = joblib.load(SCALER_PATH)
 
-# Model A laadt nu vlekkeloos in Keras 3 door de compiler-grafiek over te slaan!
 model_a = keras.models.load_model(MODEL_A_PATH, compile=False)
-print("Model A (1D CNN) succesvol geladen!")
-
-# Model B gebruikt onze brug en laadt nu ook vlekkeloos in Keras 3
 model_b = keras.models.load_model(MODEL_B_PATH, compile=False)
-print("Model B (Azure LSTM) succesvol geladen!")
 
 print("Bezig met het laden van YAMNet van TensorFlow Hub...")
 yamnet_model = hub.load('https://tfhub.dev/google/yamnet/1')
