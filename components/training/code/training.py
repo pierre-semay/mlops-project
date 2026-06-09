@@ -100,3 +100,4 @@ print("Model saved.")
 #no cap ong bro
 #m
 #mhm
+#normaal gezien is dit de laatste keer
