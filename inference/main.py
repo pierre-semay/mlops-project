@@ -12,26 +12,33 @@ sys.modules['keras.src.engine'] = keras_src_mock
 import keras.src.models.functional as modern_functional
 sys.modules['keras.src.engine.functional'] = modern_functional
 
-# Intercept and auto-correct 'axis': [2] deep inside the layer config parser
+# Intercept and clean legacy config arguments on the fly before Keras evaluates them
 import keras.src.saving.serialization_lib as serialization
 original_deserialize = serialization.deserialize_keras_object
 
 def structural_axis_patcher(config, *args, **kwargs):
     if isinstance(config, dict):
-        # 1. Clean immediate class layer configurations
-        if config.get("class_name") == "BatchNormalization":
-            inner_cfg = config.get("config", {})
-            if isinstance(inner_cfg.get("axis"), list):
-                inner_cfg["axis"] = inner_cfg["axis"][0] if inner_cfg["axis"] else 2
+        # --- 1. CLEAN CORE LAYERS ---
+        class_name = config.get("class_name")
+        inner_cfg = config.get("config", {})
+        
+        if class_name == "BatchNormalization" and isinstance(inner_cfg.get("axis"), list):
+            inner_cfg["axis"] = inner_cfg["axis"][0] if inner_cfg["axis"] else 2
+            
+        if class_name == "LSTM" and "time_major" in inner_cfg:
+            inner_cfg.pop("time_major", None) # Fixes the Keras 3 LSTM keyword crash
 
-        # 2. Clean nested layers mapped inside structural functional nodes
-        inner_config = config.get("config", {})
-        if isinstance(inner_config, dict) and "layers" in inner_config:
-            for layer in inner_config["layers"]:
-                if layer.get("class_name") == "BatchNormalization":
-                    l_cfg = layer.get("config", {})
-                    if isinstance(l_cfg.get("axis"), list):
-                        l_cfg["axis"] = l_cfg["axis"][0] if l_cfg["axis"] else 2
+        # --- 2. CLEAN NESTED FUNCTIONAL MODEL LAYERS ---
+        if isinstance(inner_cfg, dict) and "layers" in inner_cfg:
+            for layer in inner_cfg["layers"]:
+                l_name = layer.get("class_name")
+                l_cfg = layer.get("config", {})
+                
+                if l_name == "BatchNormalization" and isinstance(l_cfg.get("axis"), list):
+                    l_cfg["axis"] = l_cfg["axis"][0] if l_cfg["axis"] else 2
+                    
+                if l_name == "LSTM" and "time_major" in l_cfg:
+                    l_cfg.pop("time_major", None) # Fixes the nested LSTM keyword crash
                         
     return original_deserialize(config, *args, **kwargs)
 
