@@ -2,11 +2,8 @@
 import sys
 import os
 import contextlib
-import json
-import zipfile
-import io
 
-# --- TRANSCOMPILATION NAMESPACE SHIM ---
+# --- TRANSCOMPILATION & BATCHNORMALIZATION LIST INTERCEPTOR ---
 class LegacyModuleMock:
     pass
 
@@ -14,6 +11,32 @@ keras_src_mock = LegacyModuleMock()
 sys.modules['keras.src.engine'] = keras_src_mock
 import keras.src.models.functional as modern_functional
 sys.modules['keras.src.engine.functional'] = modern_functional
+
+# Intercept and auto-correct 'axis': [2] deep inside the layer config parser
+import keras.src.saving.serialization_lib as serialization
+original_deserialize = serialization.deserialize_keras_object
+
+def structural_axis_patcher(config, *args, **kwargs):
+    if isinstance(config, dict):
+        # 1. Clean immediate class layer configurations
+        if config.get("class_name") == "BatchNormalization":
+            inner_cfg = config.get("config", {})
+            if isinstance(inner_cfg.get("axis"), list):
+                inner_cfg["axis"] = inner_cfg["axis"][0] if inner_cfg["axis"] else 2
+
+        # 2. Clean nested layers mapped inside structural functional nodes
+        inner_config = config.get("config", {})
+        if isinstance(inner_config, dict) and "layers" in inner_config:
+            for layer in inner_config["layers"]:
+                if layer.get("class_name") == "BatchNormalization":
+                    l_cfg = layer.get("config", {})
+                    if isinstance(l_cfg.get("axis"), list):
+                        l_cfg["axis"] = l_cfg["axis"][0] if l_cfg["axis"] else 2
+                        
+    return original_deserialize(config, *args, **kwargs)
+
+# Bind our patch into the core execution lookup map of Keras 3
+serialization.deserialize_keras_object = structural_axis_patcher
 
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.responses import HTMLResponse
@@ -25,10 +48,15 @@ import joblib
 import librosa
 import psycopg2
 
-# --- GLOBAL SETTINGS & FILE PATHS ---
+# Global placeholders for the ML components
+model_a = None
+model_b = None
+yamnet_model = None
+scaler = None
+
 MODEL_A_PATH = os.getenv("MODEL_A_PATH", "models/cough-classification-lstm/INPUT_model_path/lstm_model.keras")
 MODEL_B_PATH = os.getenv("MODEL_B_PATH", "models/cough-classification-cnn/INPUT_model_path/1dcnn_model.keras")
-SCALER_PATH = os.getenv("SCALER_PATH", "scaler_lstm_experiment.pkl")  # Fixed: Secure variable definition
+SCALER_PATH = os.getenv("SCALER_PATH", "scaler_lstm_experiment.pkl")
 
 CLASS_MAPPING = {
     0: "Gezond",
@@ -42,63 +70,6 @@ DB_NAME = os.getenv("DB_NAME", "sound_classification")
 DB_USER = os.getenv("DB_USER", "mlops_user")            
 DB_PASSWORD = os.getenv("DB_PASSWORD", "mlops_password")
 
-# Global placeholders for lazy loading within lifespan context
-model_a = None
-model_b = None
-yamnet_model = None
-scaler = None
-
-# --- CORE UTILITY: RUNTIME ZIP CONFIG REWRITER ---
-def load_and_patch_keras_model(filepath):
-    """
-    Opens a .keras zip archive, intercepts ALL internal JSON configuration files,
-    recursively forces any list-wrapped BatchNormalization 'axis' values to integers,
-    and returns a valid initialized Keras 3 model instance.
-    """
-    if not os.path.exists(filepath):
-        raise IOError(f"Model file not found at: {filepath}")
-
-    with open(filepath, 'rb') as f:
-        zip_data = f.read()
-
-    modified_zip_buffer = io.BytesIO()
-    
-    with zipfile.ZipFile(io.BytesIO(zip_data), 'r') as z_in:
-        with zipfile.ZipFile(modified_zip_buffer, 'w', zipfile.ZIP_DEFLATED) as z_out:
-            for item in z_in.infolist():
-                file_bytes = z_in.read(item.filename)
-                
-                # Target every single json file inside the archive structure
-                if item.filename.endswith(".json"):
-                    try:
-                        config_dict = json.loads(file_bytes.decode('utf-8'))
-                        
-                        def recursive_axis_unwrap(item_node):
-                            if isinstance(item_node, dict):
-                                if item_node.get("class_name") == "BatchNormalization":
-                                    inner_cfg = item_node.get("config", {})
-                                    if isinstance(inner_cfg.get("axis"), list):
-                                        inner_cfg["axis"] = inner_cfg["axis"][0] if inner_cfg["axis"] else 2
-                                
-                                for key, val in item_node.items():
-                                    recursive_axis_unwrap(val)
-                            elif isinstance(item_node, list):
-                                for element in item_node:
-                                    recursive_axis_unwrap(element)
-                        
-                        recursive_axis_unwrap(config_dict)
-                        file_bytes = json.dumps(config_dict).encode('utf-8')
-                    except Exception as json_err:
-                        print(f"Warning: Skipping patch on {item.filename}: {json_err}")
-                
-                z_out.writestr(item, file_bytes)
-
-    modified_zip_buffer.seek(0)
-    
-    with zipfile.ZipFile(modified_zip_buffer, 'r') as patched_zip:
-        return keras.models.load_model(patched_zip, compile=False)
-
-
 # --- ASYNC LIFESPAN WORKER ---
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -109,8 +80,9 @@ async def lifespan(app: FastAPI):
     
     scaler = joblib.load(SCALER_PATH)
     
-    model_a = load_and_patch_keras_model(MODEL_A_PATH)
-    model_b = load_and_patch_keras_model(MODEL_B_PATH)
+    # Direct loading works cleanly since the underlying deserializer intercepts layout arrays
+    model_a = keras.models.load_model(MODEL_A_PATH, compile=False)
+    model_b = keras.models.load_model(MODEL_B_PATH, compile=False)
 
     print("Bezig met het laden van YAMNet van TensorFlow Hub...")
     yamnet_model = hub.load('https://tfhub.dev/google/yamnet/1')
