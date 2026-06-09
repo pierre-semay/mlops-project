@@ -167,6 +167,9 @@ async def predict_model_b(
     feverHistory: float = Form(...), coldPresent: float = Form(None), packYears: float = Form(...),
     file: UploadFile = File(...)
 ):
+    if model_b is None:
+        return {"error": "Model B is niet beschikbaar op deze node wegens versie-incompatibiliteit met Keras 3."}
+    
     emb, meta_scaled = await preprocess_inputs(age, gender, tbContactHistory, wheezingHistory, phlegmCough, familyAsthmaHistory, feverHistory, coldPresent, packYears, file)
     
     # Voorspelling met Model B
