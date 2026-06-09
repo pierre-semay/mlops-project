@@ -19,11 +19,10 @@ spec:
         ports:
         - containerPort: 8000
         env:
-        # Define the exact paths to your two trained models inside the container
         - name: MODEL_A_PATH
-          value: "/app/models/lstm_model.keras"
+          value: "/app/models/cough-classification-lstm/INPUT_model_path/lstm_model.keras"
         - name: MODEL_B_PATH
-          value: "/app/models/1dcnn_model.keras"
+          value: "/app/models/cough-classification-cnn/INPUT_model_path/1dcnn_model.keras"
         # Database connection configuration (matches your database.yaml)
         - name: DB_HOST
           value: "postgres-service"
