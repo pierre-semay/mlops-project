@@ -43,11 +43,13 @@ SCALER_PATH = "scaler_lstm_experiment.pkl"
 print("Bezig met het laden van de Keras Modellen en de Scaler...")
 scaler = joblib.load(SCALER_PATH)
 
-model_a = load_model(MODEL_A_PATH, compile=False)
-print("Model A (LSTM) succesvol geladen!")
+# Model A laadt nu native in Keras 3
+model_a = keras.models.load_model(MODEL_A_PATH)
+print("Model A succesvol geladen!")
 
-model_b = load_model(MODEL_B_PATH, compile=False)
-print("Model B (Azure Functional) succesvol geladen!")
+# Model B gebruikt onze brug en laadt nu ook vlekkeloos in Keras 3
+model_b = keras.models.load_model(MODEL_B_PATH, compile=False)
+print("Model B (Azure Legacy) succesvol geladen!")
 
 print("Bezig met het laden van YAMNet van TensorFlow Hub...")
 yamnet_model = hub.load('https://tfhub.dev/google/yamnet/1')
