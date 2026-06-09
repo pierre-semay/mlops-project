@@ -27,7 +27,7 @@ app = FastAPI(title="Medical Sound Classification API")
 
 # Paden naar de twee verschillende modellen
 MODEL_A_PATH = "best_model_lstm.keras"
-MODEL_B_PATH = ".\models\cough-classification\INPUT_model_path\lstm_model.keras"  # <-- VUL HIER DE NAAM VAN MODEL B IN
+MODEL_B_PATH = "models/cough-classification/INPUT_model_path/lstm_model.keras"  # <-- VUL HIER DE NAAM VAN MODEL B IN
 SCALER_PATH = "scaler_lstm_experiment.pkl"
 
 print("Bezig met het laden van de Keras Modellen en de Scaler...")
