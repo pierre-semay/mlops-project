@@ -12,20 +12,22 @@ import keras
 import psycopg2
 import sys
 
-# --- MLOPS FIX: BRUG TUSSEN AZURE (KERAS 2) EN PRODUCTION (KERAS 3) ---
-# We maken dummy modules aan zodat het Azure-model zijn oude paden herkent
+# --- MLOPS FIX: WATERDICHTE COUPLING TUSSEN AZURE EN KERAS 3 ---
 from types import ModuleType
+
+# Maak de missende geneste paden virtueel aan in het Python geheugen
 if 'keras.src.engine' not in sys.modules:
-    engine_module = ModuleType('keras.src.engine')
-    sys.modules['keras.src.engine'] = engine_module
-    
+    sys.modules['keras.src.engine'] = ModuleType('keras.src.engine')
+
+if 'keras.src.engine.functional' not in sys.modules:
     functional_module = ModuleType('keras.src.engine.functional')
     sys.modules['keras.src.engine.functional'] = functional_module
     
-    # Koppel het oude concept 'Functional' aan de nieuwe Keras 3 variant
+    # Wijs de Functional verwachting direct toe aan het Keras 3 Model-type
+    # Dit voorkomt de AttributeError!
     functional_module.Functional = keras.Model
 
-# Behoud de eerdere CustomDense fix voor de quantisatie-fout uit Windows/Azure
+# De eerdere CustomDense fix voor de quantisatie-fout uit Windows/Azure
 @keras.saving.register_keras_serializable(package="Custom")
 class CustomDense(keras.layers.Dense):
     @classmethod
