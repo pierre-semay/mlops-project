@@ -1,0 +1,23 @@
+$schema: https://azuremlschemas.azureedge.net/latest/commandComponent.schema.json
+
+name: preprocessing_project
+display_name: Preprocessing cough data
+description: Segments and processes raw cough audio files.
+version: 1
+
+type: command
+
+inputs:
+  data_dir:
+    type: uri_folder
+
+outputs:
+  output_folder:
+    type: uri_folder
+    mode: rw_mount
+
+code: ./code
+
+environment: azureml:project-env@latest
+
+command: python dataprep.py --data_dir ${{inputs.data_dir}} --output_folder ${{outputs.output_folder}}

@@ -27,8 +27,8 @@ jobs:
         run: |
           az ml model download --name cough-classification --version $(az ml model list --name cough-classification --query "[0].version" -o tsv) --download-path ./inference/models
 
-      - name: Restart API container with new model
+      - name: Push new model to github
         run: |
-          cd inference
-          docker compose down
-          docker compose up --build -d
+          git add .
+          git commit -m "automatic model update"
+          git push

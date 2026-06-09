@@ -1,0 +1,22 @@
+$schema: https://azuremlschemas.azureedge.net/latest/commandComponent.schema.json
+
+name: train_test_split
+display_name: Train Test Split
+version: 1
+
+type: command
+
+inputs:
+  data_dir:
+    type: uri_folder
+
+outputs:
+  output_folder:
+    type: uri_folder
+    mode: rw_mount
+
+code: ./code
+
+environment: azureml:project-env@latest
+
+command: python train_test_split.py --data_dir ${{inputs.data_dir}} --output_folder ${{outputs.output_folder}}
