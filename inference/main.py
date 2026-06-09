@@ -2,8 +2,6 @@
 import sys
 import os
 import contextlib
-import json
-import zipfile
 
 # --- 1. TRANSCOMPILATION NAMESPACE SHIM ---
 class LegacyModuleMock:
@@ -23,12 +21,14 @@ def structural_axis_patcher(config, *args, **kwargs):
         class_name = config.get("class_name")
         inner_cfg = config.get("config", {})
         
+        # A. Clean immediate class layer configurations
         if class_name == "BatchNormalization" and isinstance(inner_cfg.get("axis"), list):
             inner_cfg["axis"] = inner_cfg["axis"][0] if inner_cfg["axis"] else 2
             
         if class_name == "LSTM" and "time_major" in inner_cfg:
             inner_cfg.pop("time_major", None)
 
+        # B. Clean nested layers mapped inside structural functional nodes
         if isinstance(inner_cfg, dict) and "layers" in inner_cfg:
             for layer in inner_cfg["layers"]:
                 l_name = layer.get("class_name")
@@ -42,6 +42,7 @@ def structural_axis_patcher(config, *args, **kwargs):
                         
     return original_deserialize(config, *args, **kwargs)
 
+# Bind our patch into the core execution lookup map of Keras 3
 serialization.deserialize_keras_object = structural_axis_patcher
 
 from fastapi import FastAPI, UploadFile, File, Form
@@ -71,19 +72,7 @@ model_b = None
 yamnet_model = None
 scaler = None
 
-# --- 4. SAFE CUSTOM MODEL BLUEPRINT FRAMEWORK ---
-def load_legacy_model_safely(model_path):
-    with zipfile.ZipFile(model_path, 'r') as archive:
-        config_filename = "config.json" if "config.json" in archive.namelist() else "model.json"
-        config_bytes = archive.read(config_filename)
-        config_dict = json.loads(config_bytes.decode('utf-8'))
-        
-    patched_config = structural_axis_patcher(config_dict)
-    model = keras.saving.deserialize_keras_object(patched_config)
-    model.load_weights(model_path, skip_mismatch=True, by_name=False)
-    return model
-
-# --- 5. ASYNC LIFESPAN WORKER ---
+# --- 4. ASYNC LIFESPAN WORKER ---
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
     global model_a, model_b, yamnet_model, scaler
@@ -93,9 +82,9 @@ async def lifespan(app: FastAPI):
     
     scaler = joblib.load(SCALER_PATH)
     
-    # Executing through our split architectural step loader
-    model_a = load_legacy_model_safely(MODEL_A_PATH)
-    model_b = load_legacy_model_safely(MODEL_B_PATH)
+    # Standard loading works cleanly now since the global deserializer intercepts layout arrays
+    model_a = keras.models.load_model(MODEL_A_PATH, compile=False)
+    model_b = keras.models.load_model(MODEL_B_PATH, compile=False)
 
     print("Bezig met het laden van YAMNet van TensorFlow Hub...")
     yamnet_model = hub.load('https://tfhub.dev/google/yamnet/1')
@@ -104,8 +93,10 @@ async def lifespan(app: FastAPI):
     yield
     keras.backend.clear_session()
 
-# --- 6. INITIALIZE FASTAPI ---
+# --- 5. INITIALIZE FASTAPI ---
 app = FastAPI(title="Medical Sound Classification API", lifespan=lifespan)
+
+# ... Leave your endpoints and database logging code exactly as they are below ...
 
 # --- 7. ROUTES & HELPER LOGIC ---
 def log_to_db(age, gender, tb, wheezing, phlegm, asthma, fever, cold, pack_years, idx, label, scores, model_name):

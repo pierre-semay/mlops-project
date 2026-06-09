@@ -12,7 +12,7 @@ spec:
       labels:
         app: sound-api
       annotations:
-        build-id: "v10-force-fresh-pull-final"
+        build-id: "v11-force-fresh-pull-final"
     spec:
       containers:
       - name: api-container
