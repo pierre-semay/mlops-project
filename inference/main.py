@@ -1,6 +1,5 @@
-# main.py
+import sys  
 import os
-import sys
 import joblib
 import librosa
 from fastapi.responses import HTMLResponse
@@ -16,10 +15,9 @@ import psycopg2
 class DummyModule:
     pass
 
-# Nu kent Python 'sys' en zal dit vlekkeloos uitvoeren:
 sys.modules['keras.src.engine'] = DummyModule
 sys.modules['keras.src.engine.functional'] = DummyModule
-DummyModule.Functional = keras.models.Functional # Kleine aanpassing: direct uit keras.models halen is veiliger in Keras 3
+DummyModule.Functional = keras.models.Functional
 
 @keras.saving.register_keras_serializable(package="Custom")
 class CustomDense(keras.layers.Dense):
@@ -34,9 +32,9 @@ keras.saving.get_custom_objects()['Dense'] = CustomDense
 
 app = FastAPI(title="Medical Sound Classification API")
 
-# Paden naar de twee verschillende modellen
+# Paden naar de modellen (Linux-stijl forward slashes voor Docker!)
 MODEL_A_PATH = "best_model_lstm.keras"
-MODEL_B_PATH = "best_model_lstm_1.keras"  # <-- VUL HIER DE NAAM VAN MODEL B IN
+MODEL_B_PATH = "best_model_lstm_1.keras"  
 SCALER_PATH = "scaler_lstm_experiment.pkl"
 
 print("Bezig met het laden van de Keras Modellen en de Scaler...")
@@ -52,15 +50,12 @@ except Exception as e:
 
 # Model B veilig laden met fallback om crashes te voorkomen
 try:
-    # Verwijder eventueel de sys.modules aliasing die we hiervoor hebben geprobeerd, 
-    # Keras 3 heeft een ingebouwde legacy compile modus:
     model_b = keras.models.load_model(MODEL_B_PATH, compile=False, custom_objects={"Dense": CustomDense})
     print("Model B succesvol geladen (uncompiled fallback)!")
 except Exception as e:
-    print(f"WAARSCHUWING: Model B is corrupt of incompatibel met deze Keras-versie: {e}")
+    print(f"WAARSCHUWING: Model B kon niet worden geladen: {e}")
     print("Systeem start door ZONDER Model B om cluster-downtime te voorkomen.")
     model_b = None
-print("Modellen succesvol geladen!")
 
 print("Bezig met het laden van YAMNet van TensorFlow Hub...")
 yamnet_model = hub.load('https://tfhub.dev/google/yamnet/1')
@@ -77,12 +72,10 @@ DB_NAME = "sound_classification"
 DB_USER = "mlops_user"            
 DB_PASS = "mlops_password"        
 
-# Helper functie voor database logging
 def log_to_db(age, gender, tb, wheezing, phlegm, asthma, fever, cold, pack_years, idx, label, scores, model_name):
     try:
         conn = psycopg2.connect(host=DB_HOST, database=DB_NAME, user=DB_USER, password=DB_PASS)
         cursor = conn.cursor()
-        # We voegen een extra kolom 'model_used' toe in de logica om te zien welk endpoint is aangeroepen
         cursor.execute("""
             ALTER TABLE inference_logs ADD COLUMN IF NOT EXISTS model_used TEXT;
             INSERT INTO inference_logs (
@@ -147,9 +140,11 @@ async def predict_model_a(
     feverHistory: float = Form(...), coldPresent: float = Form(None), packYears: float = Form(...),
     file: UploadFile = File(...)
 ):
+    if model_a is None:
+        return {"error": "Model A is momenteel niet beschikbaar op deze cluster node."}
+
     emb, meta_scaled = await preprocess_inputs(age, gender, tbContactHistory, wheezingHistory, phlegmCough, familyAsthmaHistory, feverHistory, coldPresent, packYears, file)
     
-    # Voorspelling met Model A
     predictions = model_a.predict([emb, meta_scaled], verbose=0)
     idx = int(np.argmax(predictions[0]))
     scores = predictions[0].tolist()
@@ -168,11 +163,10 @@ async def predict_model_b(
     file: UploadFile = File(...)
 ):
     if model_b is None:
-        return {"error": "Model B is niet beschikbaar op deze node wegens versie-incompatibiliteit met Keras 3."}
-    
+        return {"error": "Model B is niet beschikbaar wegens Keras 3 versie-incompatibiliteit op dit cluster."}
+
     emb, meta_scaled = await preprocess_inputs(age, gender, tbContactHistory, wheezingHistory, phlegmCough, familyAsthmaHistory, feverHistory, coldPresent, packYears, file)
     
-    # Voorspelling met Model B
     predictions = model_b.predict([emb, meta_scaled], verbose=0)
     idx = int(np.argmax(predictions[0]))
     scores = predictions[0].tolist()
