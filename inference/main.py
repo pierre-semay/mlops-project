@@ -3,7 +3,7 @@ import sys
 import os
 import contextlib
 
-# --- TRANSCOMPILATION MODULE MOCKING ---
+# --- TRANSCOMPILATION & DESERIALIZATION PATCHES ---
 class LegacyModuleMock:
     pass
 
@@ -11,6 +11,29 @@ keras_src_mock = LegacyModuleMock()
 sys.modules['keras.src.engine'] = keras_src_mock
 import keras.src.models.functional as modern_functional
 sys.modules['keras.src.engine.functional'] = modern_functional
+
+# Intercept and fix the BatchNormalization axis format error directly in Keras 3
+import keras.src.saving.serialization_lib as serialization
+original_deserialize = serialization.deserialize_keras_object
+
+def patched_deserialize(config, *args, **kwargs):
+    if isinstance(config, dict):
+        # 1. Catch class-level configurations
+        inner_config = config.get("config", {})
+        if config.get("class_name") == "BatchNormalization" and isinstance(inner_config.get("axis"), list):
+            inner_config["axis"] = inner_config["axis"][0] if inner_config["axis"] else 2
+        
+        # 2. Catch nested layers inside functional model layer lists
+        if "layers" in inner_config:
+            for layer in inner_config["layers"]:
+                l_cfg = layer.get("config", {})
+                if layer.get("class_name") == "BatchNormalization" and isinstance(l_cfg.get("axis"), list):
+                    l_cfg["axis"] = l_cfg["axis"][0] if l_cfg["axis"] else 2
+                    
+    return original_deserialize(config, *args, **kwargs)
+
+# Inject our patch into the core deserialization execution module
+serialization.deserialize_keras_object = patched_deserialize
 
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.responses import HTMLResponse
@@ -22,28 +45,15 @@ import joblib
 import librosa
 import psycopg2
 
-# --- DESERIALIZATION WORKAROUND: UNWRAP AXIS LISTS FOR BATCHNORMALIZATION ---
-@keras.saving.register_keras_serializable(package="Custom", name="BatchNormalization")
-class FixedBatchNormalization(keras.layers.BatchNormalization):
-    @classmethod
-    def from_config(cls, config):
-        # If axis was saved as an array [2], extract it to a scalar integer 2
-        if "axis" in config and isinstance(config["axis"], list):
-            if len(config["axis"]) == 1:
-                config["axis"] = config["axis"][0]
-            else:
-                config["axis"] = int(config["axis"][-1])
-        return super().from_config(config)
-
 # Global placeholders for the ML components
 model_a = None
 model_b = None
 yamnet_model = None
 scaler = None
 
-# Correctly align env keys to your script's architecture expectations
-MODEL_A_PATH = os.getenv("MODEL_B_PATH", "models/cough-classification-cnn/INPUT_model_path/1dcnn_model.keras")
-MODEL_B_PATH = os.getenv("MODEL_A_PATH", "models/cough-classification-lstm/INPUT_model_path/lstm_model.keras")
+# Revert to standard tracking keys to prevent double-swapping mismatch bugs
+MODEL_A_PATH = os.getenv("MODEL_A_PATH", "models/cough-classification-lstm/INPUT_model_path/lstm_model.keras")
+MODEL_B_PATH = os.getenv("MODEL_B_PATH", "models/cough-classification-cnn/INPUT_model_path/1dcnn_model.keras")
 SCALER_PATH = os.getenv("SCALER_PATH", "scaler_lstm_experiment.pkl")
 
 CLASS_MAPPING = {
@@ -68,11 +78,9 @@ async def lifespan(app: FastAPI):
     
     scaler = joblib.load(SCALER_PATH)
     
-    # Inject our custom unwrapper class into the custom objects map on load
-    custom_objects = {"BatchNormalization": FixedBatchNormalization}
-    
-    model_a = keras.models.load_model(MODEL_A_PATH, compile=False, custom_objects=custom_objects)
-    model_b = keras.models.load_model(MODEL_B_PATH, compile=False, custom_objects=custom_objects)
+    # Standard load statements run safely now that the underlying deserializer handles the configuration formatting
+    model_a = keras.models.load_model(MODEL_A_PATH, compile=False)
+    model_b = keras.models.load_model(MODEL_B_PATH, compile=False)
 
     print("Bezig met het laden van YAMNet van TensorFlow Hub...")
     yamnet_model = hub.load('https://tfhub.dev/google/yamnet/1')
@@ -82,6 +90,8 @@ async def lifespan(app: FastAPI):
     keras.backend.clear_session()
 
 app = FastAPI(title="Medical Sound Classification API", lifespan=lifespan)
+
+# ... Leave your logging, helper functions, and endpoint routes exactly as they are written!
 
 # --- DATABASE LOGGING LOGIC ---
 def log_to_db(age, gender, tb, wheezing, phlegm, asthma, fever, cold, pack_years, idx, label, scores, model_name):
