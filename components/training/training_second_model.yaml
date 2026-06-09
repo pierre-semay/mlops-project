@@ -1,9 +1,9 @@
 $schema: https://azuremlschemas.azureedge.net/latest/commandComponent.schema.json
 
-name: training_project
-display_name: Training an AI model
+name: training_second_model_project
+display_name: Training a secondary AI model
 description: Trains an AI model by inputting a lot of training and testing data.
-version: 3
+version: 1
 
 type: command
 
@@ -20,4 +20,4 @@ code: ./code
 
 environment: azureml:project-env@latest
 
-command: python training.py --split_data ${{inputs.split_data}} --output_folder ${{outputs.output_folder}}
+command: python training_second_model.py --split_data ${{inputs.split_data}} --output_folder ${{outputs.output_folder}}

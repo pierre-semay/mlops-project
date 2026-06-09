@@ -19,7 +19,4 @@ code: ./code
 
 environment: azureml:project-env@latest
 
-command: >
-  python train_test_split.py
-  --data_dir ${{inputs.data_dir}}
-  --output_folder ${{outputs.output_folder}}
+command: python train_test_split.py --data_dir ${{inputs.data_dir}} --output_folder ${{outputs.output_folder}}

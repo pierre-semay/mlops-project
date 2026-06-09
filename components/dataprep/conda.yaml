@@ -1,0 +1,15 @@
+name: preprocessing-env
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.9
+  - numpy
+  - pip:
+    - pandas
+    - soundfile
+    - scipy
+    - librosa
+    - azure-ai-ml
+    - mlflow        
+    - azureml-mlflow 

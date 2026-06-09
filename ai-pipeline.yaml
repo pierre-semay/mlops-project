@@ -10,29 +10,69 @@ inputs:
     path: azureml:sounds-dataset:1
 
 outputs:
-  model:
+  model_lstm:
     mode: upload
-  registration_details:
+  model_cnn:
+    mode: upload
+  registration_details_lstm:  
+    mode: upload
+  registration_details_cnn:
     mode: upload
 
 settings:
-  default_compute: azureml:cli-project-compute #maak hier later een default van
+  default_compute: azureml:cpu-brent-auto
 
 jobs:
+  preprocessing:
+    type: command
+    component: ./components/dataprep/dataprep.yaml
+    inputs:
+      data_dir: ${{parent.inputs.data_dir}}
+    outputs:
+      output_folder:
+        mode: rw_mount
+
+  train_test_split:
+    type: command
+    component: ./components/training/train_test_split.yaml
+    inputs:
+      data_dir: ${{parent.jobs.preprocessing.outputs.output_folder}}
+    outputs:
+      output_folder:
+        mode: rw_mount
+
   training:
     type: command
     component: ./components/training/training.yaml
     inputs:
-      data_dir: ${{parent.inputs.data_dir}}
+      split_data: ${{parent.jobs.train_test_split.outputs.output_folder}}  
     outputs:
-      output_folder: ${{parent.outputs.model}}
+      output_folder: ${{parent.outputs.model_lstm}}
 
-  register:
+  training_second_model:
+    type: command
+    component: ./components/training/training_second_model.yaml
+    inputs:
+      split_data: ${{parent.jobs.train_test_split.outputs.output_folder}}  
+    outputs:
+      output_folder: ${{parent.outputs.model_cnn}}
+
+  register_lstm:
     type: command
     component: azureml://registries/azureml/components/register_model/versions/0.0.21
     inputs:
-      model_name: cough-classification
+      model_name: cough-classification-lstm
       model_type: custom_model
       model_path: ${{parent.jobs.training.outputs.output_folder}}
     outputs:
-      registration_details_folder: ${{parent.outputs.registration_details}}
+      registration_details_folder: ${{parent.outputs.registration_details_lstm}}
+
+  register_cnn:
+    type: command
+    component: azureml://registries/azureml/components/register_model/versions/0.0.21
+    inputs:
+      model_name: cough-classification-cnn
+      model_type: custom_model
+      model_path: ${{parent.jobs.training_second_model.outputs.output_folder}}
+    outputs:
+      registration_details_folder: ${{parent.outputs.registration_details_cnn}}
