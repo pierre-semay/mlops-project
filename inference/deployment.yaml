@@ -19,13 +19,19 @@ spec:
         ports:
         - containerPort: 8000
         env:
+        # --- Flat Container Model Paths ---
         - name: MODEL_A_PATH
-          value: "/app/models/cough-classification-lstm/INPUT_model_path/lstm_model.keras"
+          value: "/app/models/lstm_model.keras"
         - name: MODEL_B_PATH
-          value: "/app/models/cough-classification-cnn/INPUT_model_path/1dcnn_model.keras"
-        # FIX: Force TensorFlow's internal loader to run under the Keras 2 engine
+          value: "/app/models/1dcnn_model.keras"
+        - name: SCALER_PATH
+          value: "/app/scaler_lstm_experiment.pkl"
+          
+        # --- Framework Engine Selection Switch ---
         - name: TF_USE_LEGACY_KERAS
           value: "1"
+          
+        # --- Database Credentials (Perfectly synced with database.yaml) ---
         - name: DB_HOST
           value: "postgres-service"
         - name: DB_USER

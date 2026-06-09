@@ -1,30 +1,25 @@
-# main.py
-import sys
 import os
-from types import ModuleType
-from tensorflow import keras
-import joblib
-import librosa
+import contextlib
+import sys
+from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.responses import HTMLResponse
 import numpy as np
 import tensorflow as tf
+from tensorflow import keras
 import tensorflow_hub as hub
-from fastapi import FastAPI, UploadFile, File, Form
+import joblib
+import librosa
 import psycopg2
 
-app = FastAPI(title="Medical Sound Classification API")
+# Global placeholders for the ML components
+model_a = None
+model_b = None
+yamnet_model = None
+scaler = None
+
 MODEL_A_PATH = os.getenv("MODEL_A_PATH", "models/cough-classification-cnn/INPUT_model_path/1dcnn_model.keras")
 MODEL_B_PATH = os.getenv("MODEL_B_PATH", "models/cough-classification-lstm/INPUT_model_path/lstm_model.keras")
 SCALER_PATH = os.getenv("SCALER_PATH", "scaler_lstm_experiment.pkl")
-keras.backend.clear_session()
-print("Bezig met het laden van de Keras Modellen en de Scaler...")
-scaler = joblib.load(SCALER_PATH)
-
-model_a = keras.models.load_model(MODEL_A_PATH, compile=False)
-model_b = keras.models.load_model(MODEL_B_PATH, compile=False)
-
-print("Bezig met het laden van YAMNet van TensorFlow Hub...")
-yamnet_model = hub.load('https://tfhub.dev/google/yamnet/1')
 
 CLASS_MAPPING = {
     0: "Gezond",
@@ -32,18 +27,41 @@ CLASS_MAPPING = {
     2: "Ziekte 2",
 }
 
-# --- DATABASE CONFIGURATIE ---
-DB_HOST = "postgres-service"  
-DB_NAME = "sound_classification"  
-DB_USER = "mlops_user"            
-DB_PASS = "mlops_password"        
+# --- DATABASE CONFIGURATIE (Matches database.yaml variables) ---
+DB_HOST = os.getenv("DB_HOST", "postgres-service")  
+DB_NAME = os.getenv("DB_NAME", "sound_classification")  
+DB_USER = os.getenv("DB_USER", "mlops_user")            
+DB_PASSWORD = os.getenv("DB_PASSWORD", "mlops_password") # Matches deployment.yaml / database.yaml
 
-# Helper functie voor database logging
+# --- ASYNC LIFESPAN WORKER (Fixes the Uvicorn Crash) ---
+@contextlib.asynccontextmanager
+async def lifespan(app: FastAPI):
+    global model_a, model_b, yamnet_model, scaler
+    
+    print("Bezig met het laden van de Keras Modellen en de Scaler...")
+    keras.backend.clear_session()
+    
+    # Load components safely after Uvicorn has bound to the port
+    scaler = joblib.load(SCALER_PATH)
+    model_a = keras.models.load_model(MODEL_A_PATH, compile=False)
+    model_b = keras.models.load_model(MODEL_B_PATH, compile=False)
+    
+    print("Bezig met het laden van YAMNet van TensorFlow Hub...")
+    yamnet_model = hub.load('https://tfhub.dev/google/yamnet/1')
+    
+    print("Alle ML-modellen en de scaler zijn succesvol geladen!")
+    yield
+    keras.backend.clear_session()
+
+# Pass lifespan to FastAPI
+app = FastAPI(title="Medical Sound Classification API", lifespan=lifespan)
+
+# --- UNCHANGED DATABASE LOGGING LOGIC ---
 def log_to_db(age, gender, tb, wheezing, phlegm, asthma, fever, cold, pack_years, idx, label, scores, model_name):
     try:
-        conn = psycopg2.connect(host=DB_HOST, database=DB_NAME, user=DB_USER, password=DB_PASS)
+        # Using DB_PASSWORD here to match environment variables
+        conn = psycopg2.connect(host=DB_HOST, database=DB_NAME, user=DB_USER, password=DB_PASSWORD)
         cursor = conn.cursor()
-        # We voegen een extra kolom 'model_used' toe in de logica om te zien welk endpoint is aangeroepen
         cursor.execute("""
             ALTER TABLE inference_logs ADD COLUMN IF NOT EXISTS model_used TEXT;
             INSERT INTO inference_logs (
@@ -100,7 +118,7 @@ async def preprocess_inputs(age, gender, tb, wheezing, phlegm, asthma, fever, co
             
     return emb, meta_scaled
 
-# --- ENDPOINT 1: MODEL A (LSTM) ---
+# --- ENDPOINT 1: MODEL A (1D CNN) ---
 @app.post("/predict/model-a")
 async def predict_model_a(
     age: float = Form(...), gender: float = Form(...), tbContactHistory: float = Form(...),
@@ -110,18 +128,16 @@ async def predict_model_a(
 ):
     emb, meta_scaled = await preprocess_inputs(age, gender, tbContactHistory, wheezingHistory, phlegmCough, familyAsthmaHistory, feverHistory, coldPresent, packYears, file)
     
-    # Voorspelling met Model A
     predictions = model_a.predict([emb, meta_scaled], verbose=0)
     idx = int(np.argmax(predictions[0]))
     scores = predictions[0].tolist()
     label = CLASS_MAPPING.get(idx, f"Onbekend ({idx})")
     kansen = {CLASS_MAPPING.get(i, f"Klasse {i}"): round(p, 3) for i, p in enumerate(scores)}
     
-    # Verander de modelnaam naar CNN
     log_to_db(age, gender, tbContactHistory, wheezingHistory, phlegmCough, familyAsthmaHistory, feverHistory, coldPresent, packYears, idx, label, kansen, "Model A (1D CNN)")
     return {"voorspelling_index": idx, "voorspelling_label": label, "kansen_per_klasse": kansen, "model_gebruikt": "Model A (1D CNN)"}
 
-# --- ENDPOINT 2: MODEL B ---
+# --- ENDPOINT 2: MODEL B (Azure LSTM) ---
 @app.post("/predict/model-b")
 async def predict_model_b(
     age: float = Form(...), gender: float = Form(...), tbContactHistory: float = Form(...),
@@ -131,13 +147,11 @@ async def predict_model_b(
 ):
     emb, meta_scaled = await preprocess_inputs(age, gender, tbContactHistory, wheezingHistory, phlegmCough, familyAsthmaHistory, feverHistory, coldPresent, packYears, file)
     
-    # Voorspelling met Model B
     predictions = model_b.predict([emb, meta_scaled], verbose=0)
     idx = int(np.argmax(predictions[0]))
     scores = predictions[0].tolist()
     label = CLASS_MAPPING.get(idx, f"Onbekend ({idx})")
     kansen = {CLASS_MAPPING.get(i, f"Klasse {i}"): round(p, 3) for i, p in enumerate(scores)}
     
-    # Verander de modelnaam naar Azure LSTM
     log_to_db(age, gender, tbContactHistory, wheezingHistory, phlegmCough, familyAsthmaHistory, feverHistory, coldPresent, packYears, idx, label, kansen, "Model B (Azure LSTM)")
     return {"voorspelling_index": idx, "voorspelling_label": label, "kansen_per_klasse": kansen, "model_gebruikt": "Model B (Azure LSTM)"}
