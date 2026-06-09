@@ -3,11 +3,10 @@ import sys
 import os
 import contextlib
 
-# --- TRANSPLIATION SHIM: Redirect legacy namespaces directly to Keras 3 ---
+# --- TRANSCOMPILATION MODULE MOCKING ---
 class LegacyModuleMock:
     pass
 
-# Mock out old Keras 2 module paths to map cleanly to the Keras 3 engine
 keras_src_mock = LegacyModuleMock()
 sys.modules['keras.src.engine'] = keras_src_mock
 import keras.src.models.functional as modern_functional
@@ -22,6 +21,19 @@ import tensorflow_hub as hub
 import joblib
 import librosa
 import psycopg2
+
+# --- DESERIALIZATION WORKAROUND: UNWRAP AXIS LISTS FOR BATCHNORMALIZATION ---
+@keras.saving.register_keras_serializable(package="Custom", name="BatchNormalization")
+class FixedBatchNormalization(keras.layers.BatchNormalization):
+    @classmethod
+    def from_config(cls, config):
+        # If axis was saved as an array [2], extract it to a scalar integer 2
+        if "axis" in config and isinstance(config["axis"], list):
+            if len(config["axis"]) == 1:
+                config["axis"] = config["axis"][0]
+            else:
+                config["axis"] = int(config["axis"][-1])
+        return super().from_config(config)
 
 # Global placeholders for the ML components
 model_a = None
@@ -56,9 +68,11 @@ async def lifespan(app: FastAPI):
     
     scaler = joblib.load(SCALER_PATH)
     
-    # Native Keras 3 loading works flawlessly with the module shim above
-    model_a = keras.models.load_model(MODEL_A_PATH, compile=False)
-    model_b = keras.models.load_model(MODEL_B_PATH, compile=False)
+    # Inject our custom unwrapper class into the custom objects map on load
+    custom_objects = {"BatchNormalization": FixedBatchNormalization}
+    
+    model_a = keras.models.load_model(MODEL_A_PATH, compile=False, custom_objects=custom_objects)
+    model_b = keras.models.load_model(MODEL_B_PATH, compile=False, custom_objects=custom_objects)
 
     print("Bezig met het laden van YAMNet van TensorFlow Hub...")
     yamnet_model = hub.load('https://tfhub.dev/google/yamnet/1')
@@ -69,7 +83,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Medical Sound Classification API", lifespan=lifespan)
 
-# --- UNCHANGED DATABASE LOGGING LOGIC ---
+# --- DATABASE LOGGING LOGIC ---
 def log_to_db(age, gender, tb, wheezing, phlegm, asthma, fever, cold, pack_years, idx, label, scores, model_name):
     try:
         conn = psycopg2.connect(host=DB_HOST, database=DB_NAME, user=DB_USER, password=DB_PASSWORD)
