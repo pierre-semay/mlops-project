@@ -25,12 +25,35 @@ import joblib
 import librosa
 import psycopg2
 
+# --- GLOBAL SETTINGS & FILE PATHS ---
+MODEL_A_PATH = os.getenv("MODEL_A_PATH", "models/cough-classification-lstm/INPUT_model_path/lstm_model.keras")
+MODEL_B_PATH = os.getenv("MODEL_B_PATH", "models/cough-classification-cnn/INPUT_model_path/1dcnn_model.keras")
+SCALER_PATH = os.getenv("SCALER_PATH", "scaler_lstm_experiment.pkl")  # Fixed: Secure variable definition
+
+CLASS_MAPPING = {
+    0: "Gezond",
+    1: "Ziekte 1",
+    2: "Ziekte 2",
+}
+
+# --- DATABASE CONFIGURATIE ---
+DB_HOST = os.getenv("DB_HOST", "postgres-service")  
+DB_NAME = os.getenv("DB_NAME", "sound_classification")  
+DB_USER = os.getenv("DB_USER", "mlops_user")            
+DB_PASSWORD = os.getenv("DB_PASSWORD", "mlops_password")
+
+# Global placeholders for lazy loading within lifespan context
+model_a = None
+model_b = None
+yamnet_model = None
+scaler = None
+
 # --- CORE UTILITY: RUNTIME ZIP CONFIG REWRITER ---
 def load_and_patch_keras_model(filepath):
     """
-    Opens a .keras zip archive, intercepts both structural config files,
-    recursively normalizes array-wrapped BatchNormalization 'axis' values
-    to integers, and reconstructs the functional model instance.
+    Opens a .keras zip archive, intercepts ALL internal JSON configuration files,
+    recursively forces any list-wrapped BatchNormalization 'axis' values to integers,
+    and returns a valid initialized Keras 3 model instance.
     """
     if not os.path.exists(filepath):
         raise IOError(f"Model file not found at: {filepath}")
@@ -45,8 +68,8 @@ def load_and_patch_keras_model(filepath):
             for item in z_in.infolist():
                 file_bytes = z_in.read(item.filename)
                 
-                # Intercept both possible structural configuration targets
-                if item.filename in ["config.json", "model.json"]:
+                # Target every single json file inside the archive structure
+                if item.filename.endswith(".json"):
                     try:
                         config_dict = json.loads(file_bytes.decode('utf-8'))
                         
@@ -56,6 +79,7 @@ def load_and_patch_keras_model(filepath):
                                     inner_cfg = item_node.get("config", {})
                                     if isinstance(inner_cfg.get("axis"), list):
                                         inner_cfg["axis"] = inner_cfg["axis"][0] if inner_cfg["axis"] else 2
+                                
                                 for key, val in item_node.items():
                                     recursive_axis_unwrap(val)
                             elif isinstance(item_node, list):
@@ -65,15 +89,13 @@ def load_and_patch_keras_model(filepath):
                         recursive_axis_unwrap(config_dict)
                         file_bytes = json.dumps(config_dict).encode('utf-8')
                     except Exception as json_err:
-                        print(f"Warning: Could not parse or patch {item.filename}: {json_err}")
+                        print(f"Warning: Skipping patch on {item.filename}: {json_err}")
                 
                 z_out.writestr(item, file_bytes)
 
     modified_zip_buffer.seek(0)
     
-    # FIX: Wrap the memory stream in an active zipfile handle for Keras 3 to read natively
     with zipfile.ZipFile(modified_zip_buffer, 'r') as patched_zip:
-        # Pass the open handle to load_model, completely bypassing the disk path string requirement
         return keras.models.load_model(patched_zip, compile=False)
 
 
@@ -87,7 +109,6 @@ async def lifespan(app: FastAPI):
     
     scaler = joblib.load(SCALER_PATH)
     
-    # Run structural cleanup utility
     model_a = load_and_patch_keras_model(MODEL_A_PATH)
     model_b = load_and_patch_keras_model(MODEL_B_PATH)
 
