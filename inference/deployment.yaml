@@ -12,7 +12,7 @@ spec:
       labels:
         app: sound-api
       annotations:
-        build-id: "v12-global-variable-alignment-patch"
+        build-id: "v13-graph-node-uniqueness-patch"
     spec:
       containers:
       - name: api-container

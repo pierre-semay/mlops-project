@@ -21,9 +21,13 @@ def structural_axis_patcher(config, *args, **kwargs):
         class_name = config.get("class_name")
         inner_cfg = config.get("config", {})
         
-        # Force strict suffix alignments for the Keras 3 runtime layer map
-        if class_name == "LSTM" or config.get("name") == "lstm_cell":
+        # A. Clean immediate class layer configurations
+        if class_name == "LSTM":
             config["config"]["name"] = "lstm_cell_1"
+            # Keep the inner cell layer name unique to prevent graph collisions
+            if "cell" in config["config"] and "config" in config["config"]["cell"]:
+                config["config"]["cell"]["config"]["name"] = "lstm_cell"
+                
         if class_name == "Dense" or config.get("name") == "dense_1":
             config["config"]["name"] = "dense_1"
         if class_name == "Dense" or config.get("name") == "dense_2":
@@ -35,14 +39,17 @@ def structural_axis_patcher(config, *args, **kwargs):
         if class_name == "LSTM" and "time_major" in inner_cfg:
             inner_cfg.pop("time_major", None)
 
+        # B. Clean nested operational layers inside functional schemas
         if isinstance(inner_cfg, dict) and "layers" in inner_cfg:
             for layer in inner_cfg["layers"]:
                 l_name = layer.get("class_name")
                 l_cfg = layer.get("config", {})
                 
-                # Align nested layers
-                if l_name == "LSTM" or layer.get("name") == "lstm_cell":
+                if l_name == "LSTM":
                     layer["config"]["name"] = "lstm_cell_1"
+                    if "cell" in layer["config"] and "config" in layer["config"]["cell"]:
+                        layer["config"]["cell"]["config"]["name"] = "lstm_cell"
+                        
                 if l_name == "Dense" or layer.get("name") == "dense_1":
                     layer["config"]["name"] = "dense_1"
                 if l_name == "Dense" or layer.get("name") == "dense_2":
@@ -56,6 +63,7 @@ def structural_axis_patcher(config, *args, **kwargs):
                         
     return original_deserialize(config, *args, **kwargs)
 
+# Bind our patch into the core execution lookup map of Keras 3
 serialization.deserialize_keras_object = structural_axis_patcher
 
 from fastapi import FastAPI, UploadFile, File, Form
