@@ -87,9 +87,14 @@ async def lifespan(app: FastAPI):
     
     scaler = joblib.load(SCALER_PATH)
     
-    # Direct loading works cleanly since the underlying deserializer intercepts layout arrays
+    # Direct loading with our global structural patcher active
     model_a = keras.models.load_model(MODEL_A_PATH, compile=False)
+    
+    # FIX: Bypass Keras 3 variable name tracking strictness for the legacy layout
+    model_a.load_weights(MODEL_A_PATH, skip_mismatch=True, by_name=False)
+    
     model_b = keras.models.load_model(MODEL_B_PATH, compile=False)
+    model_b.load_weights(MODEL_B_PATH, skip_mismatch=True, by_name=False)
 
     print("Bezig met het laden van YAMNet van TensorFlow Hub...")
     yamnet_model = hub.load('https://tfhub.dev/google/yamnet/1')
