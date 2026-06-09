@@ -1,10 +1,10 @@
-fastapi>=0.100.0
-uvicorn>=0.22.0
-pydantic<2.0.0          # Vastgezet voor maximale compatibiliteit met TF 2.15
-librosa>=0.10.0
-numpy>=1.23.5,<1.26.0   # Voorkomt NumPy 2.0 conflicten met oudere TensorFlow
-scikit-learn>=1.2.0
-tensorflow==2.15.0      # <-- DIT IS DE CRUCIALE MACHINE-FIX!
-tensorflow-hub>=0.13.0
-psycopg2-binary>=2.9.6
-joblib>=1.2.0
+fastapi
+uvicorn
+python-multipart
+tensorflow-cpu
+tensorflow-hub
+librosa
+numpy
+scikit-learn>=1.8.0
+joblib
+psycopg2-binary

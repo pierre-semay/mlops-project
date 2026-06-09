@@ -27,12 +27,11 @@ SCALER_PATH = "scaler_lstm_experiment.pkl"
 print("Bezig met het laden van de Keras Modellen en de Scaler...")
 scaler = joblib.load(SCALER_PATH)
 
-# Beide modellen laden we nu puur en direct in
 model_a = keras.models.load_model(MODEL_A_PATH)
-print("Model A succesvol geladen!")
+print("Model A (LSTM) succesvol geladen!")
 
 model_b = keras.models.load_model(MODEL_B_PATH)
-print("Model B (Azure) succesvol geladen!")
+print("Model B (Azure Functional) succesvol geladen!")
 
 print("Bezig met het laden van YAMNet van TensorFlow Hub...")
 yamnet_model = hub.load('https://tfhub.dev/google/yamnet/1')
