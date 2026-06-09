@@ -12,7 +12,7 @@ spec:
       labels:
         app: sound-api
       annotations:
-        build-id: "v7-fixed-sequence-instantiation"
+        build-id: "v8-native-deserializer-patch"
     spec:
       containers:
       - name: api-container
