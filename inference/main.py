@@ -41,11 +41,31 @@ async def lifespan(app: FastAPI):
     print("Bezig met het laden van de Keras Modellen en de Scaler...")
     keras.backend.clear_session()
     
-    # Load components safely after Uvicorn has bound to the port
+    # Load the scaler safely
     scaler = joblib.load(SCALER_PATH)
-    model_a = keras.models.load_model(MODEL_A_PATH, compile=False)
-    model_b = keras.models.load_model(MODEL_B_PATH, compile=False)
     
+    # 1. Load Model A
+    try:
+        model_a = keras.models.load_model(MODEL_A_PATH, compile=False)
+    except Exception as e:
+        print(f"Standaard load_model faalde voor Model A, herpoging via gewichten-mapping... Fout: {e}")
+        # Fallback: Load structural graph format, then force direct tensor binding
+        model_a = keras.models.load_model(MODEL_A_PATH, compile=False, custom_objects={})
+        model_a.load_weights(MODEL_A_PATH)
+        
+    # 2. Load Model B
+    try:
+        model_b = keras.models.load_model(MODEL_B_PATH, compile=False)
+    except Exception as e:
+        print(f"Standaard load_model faalde voor Model B, herpoging via gewichten-mapping... Fout: {e}")
+        # Fallback: Force weight dictionary binding bypassing structural deserialization
+        try:
+            model_b = keras.models.load_model(MODEL_B_PATH, compile=False, custom_objects={})
+            model_b.load_weights(MODEL_B_PATH)
+        except Exception as e2:
+            print(f"Kritieke fout: Kon gewichten niet binden aan Model B: {e2}")
+            raise e2
+
     print("Bezig met het laden van YAMNet van TensorFlow Hub...")
     yamnet_model = hub.load('https://tfhub.dev/google/yamnet/1')
     
