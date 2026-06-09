@@ -7,4 +7,5 @@ librosa
 numpy<2.0.0
 scikit-learn>=1.8.0
 joblib
+h5py
 psycopg2-binary
