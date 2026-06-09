@@ -39,4 +39,4 @@ jobs:
       - name: Delete compute after training
         if: always()
         run: |
-          az ml compute delete --name cli-brent-compute --yes
+          az ml compute delete --name cli-project-compute --yes

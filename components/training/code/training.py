@@ -98,3 +98,4 @@ print("Model saved.")
 
 #rip schizo conversatie met mezelf, you will be missed.
 #no cap ong bro
+#m
