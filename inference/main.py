@@ -2,8 +2,11 @@
 import sys
 import os
 import contextlib
+import json
+import zipfile
+import io
 
-# --- TRANSCOMPILATION & DESERIALIZATION PATCHES ---
+# --- TRANSCOMPILATION NAMESPACE SHIM ---
 class LegacyModuleMock:
     pass
 
@@ -11,29 +14,6 @@ keras_src_mock = LegacyModuleMock()
 sys.modules['keras.src.engine'] = keras_src_mock
 import keras.src.models.functional as modern_functional
 sys.modules['keras.src.engine.functional'] = modern_functional
-
-# Intercept and fix the BatchNormalization axis format error directly in Keras 3
-import keras.src.saving.serialization_lib as serialization
-original_deserialize = serialization.deserialize_keras_object
-
-def patched_deserialize(config, *args, **kwargs):
-    if isinstance(config, dict):
-        # 1. Catch class-level configurations
-        inner_config = config.get("config", {})
-        if config.get("class_name") == "BatchNormalization" and isinstance(inner_config.get("axis"), list):
-            inner_config["axis"] = inner_config["axis"][0] if inner_config["axis"] else 2
-        
-        # 2. Catch nested layers inside functional model layer lists
-        if "layers" in inner_config:
-            for layer in inner_config["layers"]:
-                l_cfg = layer.get("config", {})
-                if layer.get("class_name") == "BatchNormalization" and isinstance(l_cfg.get("axis"), list):
-                    l_cfg["axis"] = l_cfg["axis"][0] if l_cfg["axis"] else 2
-                    
-    return original_deserialize(config, *args, **kwargs)
-
-# Inject our patch into the core deserialization execution module
-serialization.deserialize_keras_object = patched_deserialize
 
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.responses import HTMLResponse
@@ -51,7 +31,6 @@ model_b = None
 yamnet_model = None
 scaler = None
 
-# Revert to standard tracking keys to prevent double-swapping mismatch bugs
 MODEL_A_PATH = os.getenv("MODEL_A_PATH", "models/cough-classification-lstm/INPUT_model_path/lstm_model.keras")
 MODEL_B_PATH = os.getenv("MODEL_B_PATH", "models/cough-classification-cnn/INPUT_model_path/1dcnn_model.keras")
 SCALER_PATH = os.getenv("SCALER_PATH", "scaler_lstm_experiment.pkl")
@@ -68,6 +47,54 @@ DB_NAME = os.getenv("DB_NAME", "sound_classification")
 DB_USER = os.getenv("DB_USER", "mlops_user")            
 DB_PASSWORD = os.getenv("DB_PASSWORD", "mlops_password")
 
+# --- CORE UTILITY: RUNTIME ZIP CONFIG REWRITER ---
+def load_and_patch_keras_model(filepath):
+    """
+    Opens a .keras zip archive, reads its nested architecture config,
+    recursively normalizes array-wrapped BatchNormalization 'axis' values
+    to integers, and reconstructs the functional model instance.
+    """
+    if not os.path.exists(filepath):
+        raise IOError(f"Model file not found at: {filepath}")
+
+    # Read the full zip payload into a memory stream
+    with open(filepath, 'rb') as f:
+        zip_data = f.read()
+
+    modified_zip_buffer = io.BytesIO()
+    
+    with zipfile.ZipFile(io.BytesIO(zip_data), 'r') as z_in:
+        with zipfile.ZipFile(modified_zip_buffer, 'w', zipfile.ZIP_DEFLATED) as z_out:
+            for item in z_in.infolist():
+                file_bytes = z_in.read(item.filename)
+                
+                # Intercept the configuration layer map file
+                if item.filename == "config.json":
+                    config_dict = json.loads(file_bytes.decode('utf-8'))
+                    
+                    def recursive_axis_unwrap(item_node):
+                        if isinstance(item_node, dict):
+                            # Target legacy BatchNormalization nodes
+                            if item_node.get("class_name") == "BatchNormalization":
+                                inner_cfg = item_node.get("config", {})
+                                if isinstance(inner_cfg.get("axis"), list):
+                                    inner_cfg["axis"] = inner_cfg["axis"][0] if inner_cfg["axis"] else 2
+                            for key, val in item_node.items():
+                                recursive_axis_unwrap(val)
+                        elif isinstance(item_node, list):
+                            for element in item_node:
+                                recursive_axis_unwrap(element)
+                    
+                    recursive_axis_unwrap(config_dict)
+                    file_bytes = json.dumps(config_dict).encode('utf-8')
+                
+                z_out.writestr(item, file_bytes)
+
+    modified_zip_buffer.seek(0)
+    # Directly parse the patched structural stream via Keras 3
+    return keras.models.load_model(modified_zip_buffer, compile=False)
+
+
 # --- ASYNC LIFESPAN WORKER ---
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -78,9 +105,9 @@ async def lifespan(app: FastAPI):
     
     scaler = joblib.load(SCALER_PATH)
     
-    # Standard load statements run safely now that the underlying deserializer handles the configuration formatting
-    model_a = keras.models.load_model(MODEL_A_PATH, compile=False)
-    model_b = keras.models.load_model(MODEL_B_PATH, compile=False)
+    # Load and clean both structural paths using our utility function
+    model_a = load_and_patch_keras_model(MODEL_A_PATH)
+    model_b = load_and_patch_keras_model(MODEL_B_PATH)
 
     print("Bezig met het laden van YAMNet van TensorFlow Hub...")
     yamnet_model = hub.load('https://tfhub.dev/google/yamnet/1')
@@ -90,8 +117,6 @@ async def lifespan(app: FastAPI):
     keras.backend.clear_session()
 
 app = FastAPI(title="Medical Sound Classification API", lifespan=lifespan)
-
-# ... Leave your logging, helper functions, and endpoint routes exactly as they are written!
 
 # --- DATABASE LOGGING LOGIC ---
 def log_to_db(age, gender, tb, wheezing, phlegm, asthma, fever, cold, pack_years, idx, label, scores, model_name):
@@ -154,7 +179,7 @@ async def preprocess_inputs(age, gender, tb, wheezing, phlegm, asthma, fever, co
             
     return emb, meta_scaled
 
-# --- ENDPOINT 1: MODEL A (1D CNN) ---
+# --- ENDPOINT 1: MODEL A ---
 @app.post("/predict/model-a")
 async def predict_model_a(
     age: float = Form(...), gender: float = Form(...), tbContactHistory: float = Form(...),
@@ -170,10 +195,10 @@ async def predict_model_a(
     label = CLASS_MAPPING.get(idx, f"Onbekend ({idx})")
     kansen = {CLASS_MAPPING.get(i, f"Klasse {i}"): round(p, 3) for i, p in enumerate(scores)}
     
-    log_to_db(age, gender, tbContactHistory, wheezingHistory, phlegmCough, familyAsthmaHistory, feverHistory, coldPresent, packYears, idx, label, kansen, "Model A (1D CNN)")
-    return {"voorspelling_index": idx, "voorspelling_label": label, "kansen_per_klasse": kansen, "model_gebruikt": "Model A (1D CNN)"}
+    log_to_db(age, gender, tbContactHistory, wheezingHistory, phlegmCough, familyAsthmaHistory, feverHistory, coldPresent, packYears, idx, label, kansen, "Model A")
+    return {"voorspelling_index": idx, "voorspelling_label": label, "kansen_per_klasse": kansen, "model_gebruikt": "Model A"}
 
-# --- ENDPOINT 2: MODEL B (Azure LSTM) ---
+# --- ENDPOINT 2: MODEL B ---
 @app.post("/predict/model-b")
 async def predict_model_b(
     age: float = Form(...), gender: float = Form(...), tbContactHistory: float = Form(...),
@@ -189,5 +214,5 @@ async def predict_model_b(
     label = CLASS_MAPPING.get(idx, f"Onbekend ({idx})")
     kansen = {CLASS_MAPPING.get(i, f"Klasse {i}"): round(p, 3) for i, p in enumerate(scores)}
     
-    log_to_db(age, gender, tbContactHistory, wheezingHistory, phlegmCough, familyAsthmaHistory, feverHistory, coldPresent, packYears, idx, label, kansen, "Model B (Azure LSTM)")
-    return {"voorspelling_index": idx, "voorspelling_label": label, "kansen_per_klasse": kansen, "model_gebruikt": "Model B (Azure LSTM)"}
+    log_to_db(age, gender, tbContactHistory, wheezingHistory, phlegmCough, familyAsthmaHistory, feverHistory, coldPresent, packYears, idx, label, kansen, "Model B")
+    return {"voorspelling_index": idx, "voorspelling_label": label, "kansen_per_klasse": kansen, "model_gebruikt": "Model B"}
