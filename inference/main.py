@@ -1,9 +1,17 @@
 # main.py
 import os
+import sys
+from types import ModuleType
 import joblib
 import librosa
 from fastapi.responses import HTMLResponse
 import numpy as np
+if 'numpy._core' not in sys.modules:
+    core_module = ModuleType('numpy._core')
+    sys.modules['numpy._core'] = core_module
+    # Map de missende submodules door naar de basismap van NumPy 1.x
+    core_module.numeric = np
+    core_module.multiarray = np
 import tensorflow as tf
 import tensorflow_hub as hub
 from fastapi import FastAPI, UploadFile, File, Form
