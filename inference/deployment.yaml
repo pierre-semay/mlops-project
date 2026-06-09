@@ -12,7 +12,7 @@ spec:
       labels:
         app: sound-api
       annotations:
-        build-id: "v5-weights-alignment-patch"
+        build-id: "v6-skeleton-structural-load"
     spec:
       containers:
       - name: api-container

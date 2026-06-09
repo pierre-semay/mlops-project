@@ -87,14 +87,34 @@ async def lifespan(app: FastAPI):
     
     scaler = joblib.load(SCALER_PATH)
     
-    # Direct loading with our global structural patcher active
-    model_a = keras.models.load_model(MODEL_A_PATH, compile=False)
+    import zipfile
+    import json
     
-    # FIX: Bypass Keras 3 variable name tracking strictness for the legacy layout
-    model_a.load_weights(MODEL_A_PATH, skip_mismatch=True, by_name=False)
-    
-    model_b = keras.models.load_model(MODEL_B_PATH, compile=False)
-    model_b.load_weights(MODEL_B_PATH, skip_mismatch=True, by_name=False)
+    def load_legacy_model_safely(model_path):
+        """
+        Extracts structural configs, builds a functional architectural framework skeleton,
+        and safely forces weights mapping by structural order while ignoring legacy name strings.
+        """
+        # 1. Open the archive file and isolate the structural layout text
+        with zipfile.ZipFile(model_path, 'r') as archive:
+            # Check both common structural filenames used across Keras versions
+            config_filename = "config.json" if "config.json" in archive.namelist() else "model.json"
+            config_bytes = archive.read(config_filename)
+            config_dict = json.loads(config_bytes.decode('utf-8'))
+            
+        # 2. Run our global structural_axis_patcher utility directly over the raw dict mapping
+        patched_config = structural_axis_patcher(config_dict)
+        
+        # 3. Instantiate a completely empty architectural model blueprint from the clean config
+        model = keras.saving.deserialize_keras_object(patched_config)
+        
+        # 4. Bind the tensor weights data sequentially by layer order, completely ignoring naming mismatches
+        model.load_weights(model_path, skip_mismatch=True, by_name=False)
+        return model
+
+    # Load both models through our safeguard framework builder
+    model_a = load_legacy_model_safely(MODEL_A_PATH)
+    model_b = load_legacy_model_safely(MODEL_B_PATH)
 
     print("Bezig met het laden van YAMNet van TensorFlow Hub...")
     yamnet_model = hub.load('https://tfhub.dev/google/yamnet/1')
@@ -102,8 +122,6 @@ async def lifespan(app: FastAPI):
     print("Alle ML-modellen en de scaler zijn succesvol geladen!")
     yield
     keras.backend.clear_session()
-
-app = FastAPI(title="Medical Sound Classification API", lifespan=lifespan)
 
 # --- DATABASE LOGGING LOGIC ---
 def log_to_db(age, gender, tb, wheezing, phlegm, asthma, fever, cold, pack_years, idx, label, scores, model_name):
