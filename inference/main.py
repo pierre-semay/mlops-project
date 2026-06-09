@@ -2,7 +2,7 @@
 import sys
 import os
 from types import ModuleType
-import keras
+from tensorflow import keras
 import joblib
 import librosa
 from fastapi.responses import HTMLResponse
@@ -17,7 +17,7 @@ app = FastAPI(title="Medical Sound Classification API")
 MODEL_A_PATH = "models/cough-classification-cnn/INPUT_model_path/1dcnn_model.keras"
 MODEL_B_PATH = "models/cough-classification-lstm/INPUT_model_path/lstm_model.keras"
 SCALER_PATH = "scaler_lstm_experiment.pkl"
-
+keras.backend.clear_session()
 print("Bezig met het laden van de Keras Modellen en de Scaler...")
 scaler = joblib.load(SCALER_PATH)
 

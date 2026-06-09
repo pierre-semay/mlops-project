@@ -18,6 +18,21 @@ spec:
         imagePullPolicy: Always
         ports:
         - containerPort: 8000
+        env:
+        # Define the exact paths to your two trained models inside the container
+        - name: MODEL_A_PATH
+          value: "/app/models/lstm_model.keras"
+        - name: MODEL_B_PATH
+          value: "/app/models/1dcnn_model.keras"
+        # Database connection configuration (matches your database.yaml)
+        - name: DB_HOST
+          value: "postgres-service"
+        - name: DB_USER
+          value: "mlops_user"
+        - name: DB_PASSWORD
+          value: "mlops_password"
+        - name: DB_NAME
+          value: "sound_classification"
 ---
 apiVersion: v1
 kind: Service
