@@ -8,7 +8,13 @@
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 </head>
 <body class="bg-gray-100 min-h-screen py-10 px-5       ">
-
+    <div class="border-t border-gray-200 pt-4">
+    <label class="block text-sm font-semibold text-blue-900 mb-1">Selecteer AI Architectuur (Eis Leerkracht)</label>
+    <select id="modelSelector" required class="w-full border border-blue-300 rounded-lg p-2.5 bg-blue-50 font-medium text-blue-900 focus:ring-2 focus:ring-blue-500">
+        <option value="/predict/model-a">Model A (Multi-Input LSTM)</option>
+        <option value="/predict/model-b">Model B (Alternatieve Netwerk)</option>
+    </select>
+    </div>
     <div class="max-w-3xl mx-auto bg-white rounded-xl shadow-md overflow-hidden p-8">
         <h1 class="text-3xl font-bold text-gray-800 mb-2 text-center">Medische Geluid Analyser</h1>
         <p class="text-gray-600 mb-8 text-center">Vul de patiëntgegevens in en upload een hoest- of ademhalingsgeluid (.wav) voor analyse.</p>
@@ -74,43 +80,48 @@
     </div>
 
     <script>
-        const form = document.getElementById('predictionForm');
-        const resultCard = document.getElementById('resultCard');
-        const predictedLabel = document.getElementById('predictedLabel');
-        const classProbabilities = document.getElementById('classProbabilities');
+    const form = document.getElementById('predictionForm');
+    const resultCard = document.getElementById('resultCard');
+    const predictedLabel = document.getElementById('predictedLabel');
+    const classProbabilities = document.getElementById('classProbabilities');
+    const modelSelector = document.getElementById('modelSelector'); // <-- Haal de selector op
 
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const formData = new FormData(form);
-            
-            if (!form.coldPresent.value) {
-                formData.delete('coldPresent');
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const formData = new FormData(form);
+        if (!form.coldPresent.value) {
+            formData.delete('coldPresent');
+        }
+
+        // Dynamische URL op basis van de frontend selectie
+        const targetEndpoint = modelSelector.value; 
+
+        try {
+            // Dit schiet nu dynamisch naar /predict/model-a OF /predict/model-b
+            const response = await fetch(targetEndpoint, {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                throw new Error(`Server Error: ${response.statusText}`);
             }
 
-            try {
-                const response = await fetch('/predict', {
-                    method: 'POST',
-                    body: formData
-                });
+            const result = await response.json();
 
-                if (!response.ok) {
-                    throw new Error(`Server Error: ${response.statusText}`);
-                }
+            // Toon resultaten + welk model het heeft berekend
+            predictedLabel.innerText = `${result.voorspelling_label} (Berekend via: ${result.model_gebruikt})`;
+            classProbabilities.innerText = JSON.stringify(result.kansen_per_klasse, null, 2);
+            
+            resultCard.classList.remove('hidden');
+            resultCard.scrollIntoView({ behavior: 'smooth' });
 
-                const result = await response.json();
-
-                predictedLabel.innerText = result.voorspelling_label;
-                classProbabilities.innerText = JSON.stringify(result.kansen_per_klasse, null, 2);
-                
-                resultCard.classList.remove('hidden');
-                resultCard.scrollIntoView({ behavior: 'smooth' });
-
-            } catch (error) {
-                console.error("Er is iets fout gegaan:", error);
-                alert("Analyse mislukt: " + error.message);
-            }
-        });
+        } catch (error) {
+            console.error("Analyse mislukt:", error);
+            alert("Analyse mislukt: " + error.message);
+        }
+    });
     </script>
 </body>
 </html>
