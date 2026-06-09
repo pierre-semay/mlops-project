@@ -1,14 +1,37 @@
 # main.py
+import sys
 import os
+
+# --- MLOPS COMPATIBILITEITSBRUG TUSSEN KERAS 2 EN KERAS 3 ---
+from types import ModuleType
+import keras
+
+if 'keras.src.engine' not in sys.modules:
+    sys.modules['keras.src.engine'] = ModuleType('keras.src.engine')
+
+if 'keras.src.engine.functional' not in sys.modules:
+    functional_module = ModuleType('keras.src.engine.functional')
+    sys.modules['keras.src.engine.functional'] = functional_module
+    # Map de oude Functional klasse direct naar het Keras 3 Model
+    functional_module.Functional = keras.Model
+
+# Sloop de verouderde 'time_major' parameter live uit de LSTM-laag van het Azure-model
+original_lstm_from_config = keras.layers.LSTM.from_config
+@classmethod
+def patched_lstm_from_config(cls, config):
+    if 'time_major' in config:
+        del config['time_major']
+    return original_lstm_from_config(config)
+keras.layers.LSTM.from_config = patched_lstm_from_config
+# ----------------------------------------------------------------------
+
 import joblib
 import librosa
 from fastapi.responses import HTMLResponse
 import numpy as np
-from pydantic import BaseModel
 import tensorflow as tf
 import tensorflow_hub as hub
 from fastapi import FastAPI, UploadFile, File, Form
-from tensorflow.keras.models import load_model
 import psycopg2
 
 app = FastAPI(title="Medical Sound Classification API")
