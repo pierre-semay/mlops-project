@@ -1,5 +1,6 @@
 # main.py
 import os
+import sys
 import joblib
 import librosa
 from fastapi.responses import HTMLResponse
@@ -11,7 +12,15 @@ from fastapi import FastAPI, UploadFile, File, Form
 import keras
 import psycopg2
 
-# --- MLOPS TRICK: BYPASS KERAS CONFIGURATION DESERIALIZATION BUG ---
+# --- MLOPS TRICK: BYPASS KERAS ARCHITECTURE VERSION MISMATCHES ---
+class DummyModule:
+    pass
+
+# Nu kent Python 'sys' en zal dit vlekkeloos uitvoeren:
+sys.modules['keras.src.engine'] = DummyModule
+sys.modules['keras.src.engine.functional'] = DummyModule
+DummyModule.Functional = keras.models.Functional # Kleine aanpassing: direct uit keras.models halen is veiliger in Keras 3
+
 @keras.saving.register_keras_serializable(package="Custom")
 class CustomDense(keras.layers.Dense):
     @classmethod
@@ -32,8 +41,25 @@ SCALER_PATH = "scaler_lstm_experiment.pkl"
 
 print("Bezig met het laden van de Keras Modellen en de Scaler...")
 scaler = joblib.load(SCALER_PATH)
-model_a = keras.models.load_model(MODEL_A_PATH, custom_objects={"Dense": CustomDense})
-model_b = keras.models.load_model(MODEL_B_PATH, custom_objects={"Dense": CustomDense}) # <-- Model B ingeladen
+
+# Model A (LSTM) veilig laden
+try:
+    model_a = keras.models.load_model(MODEL_A_PATH, custom_objects={"Dense": CustomDense})
+    print("Model A (LSTM) succesvol geladen!")
+except Exception as e:
+    print(f"CRITIEKE FOUT: Kon Model A niet laden: {e}")
+    model_a = None
+
+# Model B veilig laden met fallback om crashes te voorkomen
+try:
+    # Verwijder eventueel de sys.modules aliasing die we hiervoor hebben geprobeerd, 
+    # Keras 3 heeft een ingebouwde legacy compile modus:
+    model_b = keras.models.load_model(MODEL_B_PATH, compile=False, custom_objects={"Dense": CustomDense})
+    print("Model B succesvol geladen (uncompiled fallback)!")
+except Exception as e:
+    print(f"WAARSCHUWING: Model B is corrupt of incompatibel met deze Keras-versie: {e}")
+    print("Systeem start door ZONDER Model B om cluster-downtime te voorkomen.")
+    model_b = None
 print("Modellen succesvol geladen!")
 
 print("Bezig met het laden van YAMNet van TensorFlow Hub...")
