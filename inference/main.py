@@ -1,21 +1,14 @@
 # main.py
 import os
-import sys
-from types import ModuleType
 import joblib
 import librosa
 from fastapi.responses import HTMLResponse
 import numpy as np
-if 'numpy._core' not in sys.modules:
-    core_module = ModuleType('numpy._core')
-    sys.modules['numpy._core'] = core_module
-    # Map de missende submodules door naar de basismap van NumPy 1.x
-    core_module.numeric = np
-    core_module.multiarray = np
+from pydantic import BaseModel
 import tensorflow as tf
 import tensorflow_hub as hub
 from fastapi import FastAPI, UploadFile, File, Form
-import tensorflow.keras as keras  # Merk op: we importeren keras via tensorflow!
+from tensorflow.keras.models import load_model
 import psycopg2
 
 app = FastAPI(title="Medical Sound Classification API")
@@ -27,10 +20,10 @@ SCALER_PATH = "scaler_lstm_experiment.pkl"
 print("Bezig met het laden van de Keras Modellen en de Scaler...")
 scaler = joblib.load(SCALER_PATH)
 
-model_a = keras.models.load_model(MODEL_A_PATH)
+model_a = load_model(MODEL_A_PATH, compile=False)
 print("Model A (LSTM) succesvol geladen!")
 
-model_b = keras.models.load_model(MODEL_B_PATH)
+model_b = load_model(MODEL_B_PATH, compile=False)
 print("Model B (Azure Functional) succesvol geladen!")
 
 print("Bezig met het laden van YAMNet van TensorFlow Hub...")
