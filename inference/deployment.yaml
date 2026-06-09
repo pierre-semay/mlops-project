@@ -23,7 +23,9 @@ spec:
           value: "/app/models/cough-classification-lstm/INPUT_model_path/lstm_model.keras"
         - name: MODEL_B_PATH
           value: "/app/models/cough-classification-cnn/INPUT_model_path/1dcnn_model.keras"
-        # Database connection configuration (matches your database.yaml)
+        # FIX: Force TensorFlow's internal loader to run under the Keras 2 engine
+        - name: TF_USE_LEGACY_KERAS
+          value: "1"
         - name: DB_HOST
           value: "postgres-service"
         - name: DB_USER

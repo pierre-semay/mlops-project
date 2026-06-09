@@ -12,21 +12,6 @@ import tensorflow_hub as hub
 from fastapi import FastAPI, UploadFile, File, Form
 import psycopg2
 
-# --- MAGIC TRICK: Route legacy Keras 2 module requests to Keras 3 layers ---
-import keras.src.saving.serialization_lib as serialization
-if not hasattr(serialization, '_retrieve_class_or_fn'):
-    # If the namespace is missing, we alias the old engine path to the new structure
-    import keras.src as keras_src
-    class DummyEngine:
-        pass
-    dummy_engine = DummyEngine()
-    # Mock out the old Keras 2 functional path
-    import keras.src.models.functional as modern_functional
-    dummy_engine.functional = modern_functional
-    sys.modules['keras.src.engine'] = dummy_engine
-    sys.modules['keras.src.engine.functional'] = modern_functional
-
-
 app = FastAPI(title="Medical Sound Classification API")
 MODEL_A_PATH = os.getenv("MODEL_A_PATH", "models/cough-classification-cnn/INPUT_model_path/1dcnn_model.keras")
 MODEL_B_PATH = os.getenv("MODEL_B_PATH", "models/cough-classification-lstm/INPUT_model_path/lstm_model.keras")
