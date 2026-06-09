@@ -31,22 +31,31 @@ def patched_bn_init(self, *args, **kwargs):
     original_bn_init(self, *args, **kwargs)
 keras.layers.BatchNormalization.__init__ = patched_bn_init
 
-# Patch 3: Forceer de build-status en fix Keras 2 InputLayer parameters voor Keras 3
+# Patch 3: Filter specifieke Keras 2/3 parameters op basis van het type laag
 original_layer_from_config = keras.layers.Layer.from_config
 @classmethod
 def patched_layer_from_config(cls, config):
     if 'build_config' in config:
         del config['build_config']
         
-    # --- NIEUW: Map Keras 2 input parameters naar Keras 3 ---
-    if 'batch_input_shape' in config:
-        config['batch_shape'] = config.pop('batch_input_shape')
-    if 'sparse' in config:
-        del config['sparse']
-    if 'ragged' in config:
-        del config['ragged']
-    # --------------------------------------------------------
-    
+    # Controleer of we met een Input omgeving te maken hebben
+    is_input_layer = (cls.__name__ == 'InputLayer' or config.get('name', '').startswith('input'))
+
+    if is_input_layer:
+        # Als het een input-laag is, mappen we de shape netjes naar Keras 3 formaat
+        if 'batch_input_shape' in config:
+            config['batch_shape'] = config.pop('batch_input_shape')
+        if 'sparse' in config:
+            del config['sparse']
+        if 'ragged' in config:
+            del config['ragged']
+    else:
+        # Voor álle andere lagen slopen we input-shapes weg om te voorkomen dat de basis Layer crasht
+        if 'batch_input_shape' in config:
+            del config['batch_input_shape']
+        if 'batch_shape' in config:
+            del config['batch_shape']
+            
     return original_layer_from_config(config)
 keras.layers.Layer.from_config = patched_layer_from_config
 # ----------------------------------------------------------------------
