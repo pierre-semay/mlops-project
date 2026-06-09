@@ -15,19 +15,15 @@ import sys
 # --- MLOPS FIX: WATERDICHTE COUPLING TUSSEN AZURE EN KERAS 3 ---
 from types import ModuleType
 
-# Maak de missende geneste paden virtueel aan in het Python geheugen
 if 'keras.src.engine' not in sys.modules:
     sys.modules['keras.src.engine'] = ModuleType('keras.src.engine')
 
 if 'keras.src.engine.functional' not in sys.modules:
     functional_module = ModuleType('keras.src.engine.functional')
     sys.modules['keras.src.engine.functional'] = functional_module
-    
-    # Wijs de Functional verwachting direct toe aan het Keras 3 Model-type
-    # Dit voorkomt de AttributeError!
     functional_module.Functional = keras.Model
 
-# De eerdere CustomDense fix voor de quantisatie-fout uit Windows/Azure
+# 1. Bestaande Dense fix voor quantisatie-fouten
 @keras.saving.register_keras_serializable(package="Custom")
 class CustomDense(keras.layers.Dense):
     @classmethod
@@ -36,7 +32,18 @@ class CustomDense(keras.layers.Dense):
             del config['quantization_config']
         return super().from_config(config)
 
+# 2. NIEUW: LSTM fix die de verouderde 'time_major' parameter onderschept en wist
+@keras.saving.register_keras_serializable(package="Custom")
+class CustomLSTM(keras.layers.LSTM):
+    @classmethod
+    def from_config(cls, config):
+        if 'time_major' in config:
+            del config['time_major'] # Sloop de illegale parameter weg voor Keras 3!
+        return super().from_config(config)
+
+# Registreer de custom lagen in de Keras objecten-omgeving
 keras.saving.get_custom_objects()['Dense'] = CustomDense
+keras.saving.get_custom_objects()['LSTM'] = CustomLSTM
 # ------------------------------------------------------------------
 
 app = FastAPI(title="Medical Sound Classification API")
