@@ -10,8 +10,22 @@ import tensorflow_hub as hub
 from fastapi import FastAPI, UploadFile, File, Form
 import keras
 import psycopg2
+import os
 
-# --- MLOPS TRICK: BYPASS KERAS CONFIGURATION DESERIALIZATION BUG ---
+# --- MLOPS TRICK: BYPASS KERAS ARCHITECTURE VERSION MISMATCHES ---
+# We maken een virtuele module aan om Keras te foppen als hij zoekt naar de oude 'keras.src.engine'
+import keras
+
+# Maak een dummy klasse aan voor de missende 'Functional' import
+class DummyModule:
+    pass
+
+# Koppel de moderne Functional klasse aan de oude verwachting van Model B
+sys.modules['keras.src.engine'] = DummyModule
+sys.modules['keras.src.engine.functional'] = DummyModule
+DummyModule.Functional = keras.src.models.Functional
+
+
 @keras.saving.register_keras_serializable(package="Custom")
 class CustomDense(keras.layers.Dense):
     @classmethod
