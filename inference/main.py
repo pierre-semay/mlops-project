@@ -1,11 +1,23 @@
+# main.py
+import sys
 import os
 import contextlib
-import sys
+
+# --- TRANSPLIATION SHIM: Redirect legacy namespaces directly to Keras 3 ---
+class LegacyModuleMock:
+    pass
+
+# Mock out old Keras 2 module paths to map cleanly to the Keras 3 engine
+keras_src_mock = LegacyModuleMock()
+sys.modules['keras.src.engine'] = keras_src_mock
+import keras.src.models.functional as modern_functional
+sys.modules['keras.src.engine.functional'] = modern_functional
+
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.responses import HTMLResponse
 import numpy as np
 import tensorflow as tf
-from tensorflow import keras
+import keras
 import tensorflow_hub as hub
 import joblib
 import librosa
@@ -17,8 +29,9 @@ model_b = None
 yamnet_model = None
 scaler = None
 
-MODEL_A_PATH = os.getenv("MODEL_A_PATH", "models/cough-classification-cnn/INPUT_model_path/1dcnn_model.keras")
-MODEL_B_PATH = os.getenv("MODEL_B_PATH", "models/cough-classification-lstm/INPUT_model_path/lstm_model.keras")
+# Correctly align env keys to your script's architecture expectations
+MODEL_A_PATH = os.getenv("MODEL_B_PATH", "models/cough-classification-cnn/INPUT_model_path/1dcnn_model.keras")
+MODEL_B_PATH = os.getenv("MODEL_A_PATH", "models/cough-classification-lstm/INPUT_model_path/lstm_model.keras")
 SCALER_PATH = os.getenv("SCALER_PATH", "scaler_lstm_experiment.pkl")
 
 CLASS_MAPPING = {
@@ -27,13 +40,13 @@ CLASS_MAPPING = {
     2: "Ziekte 2",
 }
 
-# --- DATABASE CONFIGURATIE (Matches database.yaml variables) ---
+# --- DATABASE CONFIGURATIE ---
 DB_HOST = os.getenv("DB_HOST", "postgres-service")  
 DB_NAME = os.getenv("DB_NAME", "sound_classification")  
 DB_USER = os.getenv("DB_USER", "mlops_user")            
-DB_PASSWORD = os.getenv("DB_PASSWORD", "mlops_password") # Matches deployment.yaml / database.yaml
+DB_PASSWORD = os.getenv("DB_PASSWORD", "mlops_password")
 
-# --- ASYNC LIFESPAN WORKER (Fixes the Uvicorn Crash) ---
+# --- ASYNC LIFESPAN WORKER ---
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
     global model_a, model_b, yamnet_model, scaler
@@ -41,30 +54,11 @@ async def lifespan(app: FastAPI):
     print("Bezig met het laden van de Keras Modellen en de Scaler...")
     keras.backend.clear_session()
     
-    # Load the scaler safely
     scaler = joblib.load(SCALER_PATH)
     
-    # 1. Load Model A
-    try:
-        model_a = keras.models.load_model(MODEL_A_PATH, compile=False)
-    except Exception as e:
-        print(f"Standaard load_model faalde voor Model A, herpoging via gewichten-mapping... Fout: {e}")
-        # Fallback: Load structural graph format, then force direct tensor binding
-        model_a = keras.models.load_model(MODEL_A_PATH, compile=False, custom_objects={})
-        model_a.load_weights(MODEL_A_PATH)
-        
-    # 2. Load Model B
-    try:
-        model_b = keras.models.load_model(MODEL_B_PATH, compile=False)
-    except Exception as e:
-        print(f"Standaard load_model faalde voor Model B, herpoging via gewichten-mapping... Fout: {e}")
-        # Fallback: Force weight dictionary binding bypassing structural deserialization
-        try:
-            model_b = keras.models.load_model(MODEL_B_PATH, compile=False, custom_objects={})
-            model_b.load_weights(MODEL_B_PATH)
-        except Exception as e2:
-            print(f"Kritieke fout: Kon gewichten niet binden aan Model B: {e2}")
-            raise e2
+    # Native Keras 3 loading works flawlessly with the module shim above
+    model_a = keras.models.load_model(MODEL_A_PATH, compile=False)
+    model_b = keras.models.load_model(MODEL_B_PATH, compile=False)
 
     print("Bezig met het laden van YAMNet van TensorFlow Hub...")
     yamnet_model = hub.load('https://tfhub.dev/google/yamnet/1')
@@ -73,13 +67,11 @@ async def lifespan(app: FastAPI):
     yield
     keras.backend.clear_session()
 
-# Pass lifespan to FastAPI
 app = FastAPI(title="Medical Sound Classification API", lifespan=lifespan)
 
 # --- UNCHANGED DATABASE LOGGING LOGIC ---
 def log_to_db(age, gender, tb, wheezing, phlegm, asthma, fever, cold, pack_years, idx, label, scores, model_name):
     try:
-        # Using DB_PASSWORD here to match environment variables
         conn = psycopg2.connect(host=DB_HOST, database=DB_NAME, user=DB_USER, password=DB_PASSWORD)
         cursor = conn.cursor()
         cursor.execute("""
