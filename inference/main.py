@@ -12,19 +12,20 @@ import keras
 import psycopg2
 import sys
 
-# --- MLOPS TRICK: BYPASS KERAS ARCHITECTURE VERSION MISMATCHES ---
-# We maken een virtuele module aan om Keras te foppen als hij zoekt naar de oude 'keras.src.engine'
-import keras
+# --- MLOPS FIX: BRUG TUSSEN AZURE (KERAS 2) EN PRODUCTION (KERAS 3) ---
+# We maken dummy modules aan zodat het Azure-model zijn oude paden herkent
+from types import ModuleType
+if 'keras.src.engine' not in sys.modules:
+    engine_module = ModuleType('keras.src.engine')
+    sys.modules['keras.src.engine'] = engine_module
+    
+    functional_module = ModuleType('keras.src.engine.functional')
+    sys.modules['keras.src.engine.functional'] = functional_module
+    
+    # Koppel het oude concept 'Functional' aan de nieuwe Keras 3 variant
+    functional_module.Functional = keras.Model
 
-# Maak een dummy klasse aan voor de missende 'Functional' import
-class DummyModule:
-    pass
-
-# Koppel de moderne Functional klasse aan de oude verwachting van Model B
-sys.modules['keras.src.engine'] = DummyModule
-sys.modules['keras.src.engine.functional'] = DummyModule
-DummyModule.Functional = keras.models.Functional
-
+# Behoud de eerdere CustomDense fix voor de quantisatie-fout uit Windows/Azure
 @keras.saving.register_keras_serializable(package="Custom")
 class CustomDense(keras.layers.Dense):
     @classmethod
@@ -40,7 +41,7 @@ app = FastAPI(title="Medical Sound Classification API")
 
 # Paden naar de twee verschillende modellen
 MODEL_A_PATH = "best_model_lstm.keras"
-MODEL_B_PATH = "models/cough-classification/INPUT_model_path/lstm_model.keras"  # <-- VUL HIER DE NAAM VAN MODEL B IN
+MODEL_B_PATH = "models/cough-classification/INPUT_model_path/lstm_model.keras"
 SCALER_PATH = "scaler_lstm_experiment.pkl"
 
 # main.py
@@ -48,24 +49,13 @@ SCALER_PATH = "scaler_lstm_experiment.pkl"
 print("Bezig met het laden van de Keras Modellen en de Scaler...")
 scaler = joblib.load(SCALER_PATH)
 
-# Model A (LSTM) veilig laden
-try:
-    model_a = keras.models.load_model(MODEL_A_PATH, custom_objects={"Dense": CustomDense})
-    print("Model A (LSTM) succesvol geladen!")
-except Exception as e:
-    print(f"CRITIEKE FOUT: Kon Model A niet laden: {e}")
-    model_a = None
+# Model A (LSTM) laden
+model_a = keras.models.load_model(MODEL_A_PATH, custom_objects={"Dense": CustomDense})
+print("Model A succesvol geladen!")
 
-# Model B veilig laden met fallback om crashes te voorkomen
-try:
-    # Verwijder eventueel de sys.modules aliasing die we hiervoor hebben geprobeerd, 
-    # Keras 3 heeft een ingebouwde legacy compile modus:
-    model_b = keras.models.load_model(MODEL_B_PATH, compile=False, custom_objects={"Dense": CustomDense})
-    print("Model B succesvol geladen (uncompiled fallback)!")
-except Exception as e:
-    print(f"WAARSCHUWING: Model B is corrupt of incompatibel met deze Keras-versie: {e}")
-    print("Systeem start door ZONDER Model B om cluster-downtime te voorkomen.")
-    model_b = None
+# Model B (Azure Functional) veilig laden zonder compiler-ruis
+model_b = keras.models.load_model(MODEL_B_PATH, compile=False, custom_objects={"Dense": CustomDense})
+print("Model B (Azure Functional) succesvol geladen en geactiveerd!")
 
 print("Bezig met het laden van YAMNet van TensorFlow Hub...")
 yamnet_model = hub.load('https://tfhub.dev/google/yamnet/1')
