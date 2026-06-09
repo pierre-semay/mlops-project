@@ -2,8 +2,10 @@
 import sys
 import os
 import contextlib
+import json
+import zipfile
 
-# --- TRANSCOMPILATION & BATCHNORMALIZATION LIST INTERCEPTOR ---
+# --- 1. TRANSCOMPILATION NAMESPACE SHIM ---
 class LegacyModuleMock:
     pass
 
@@ -12,13 +14,12 @@ sys.modules['keras.src.engine'] = keras_src_mock
 import keras.src.models.functional as modern_functional
 sys.modules['keras.src.engine.functional'] = modern_functional
 
-# Intercept and clean legacy config arguments on the fly before Keras evaluates them
+# --- 2. GLOBAL DE-SERIALIZATION PATCHER ---
 import keras.src.saving.serialization_lib as serialization
 original_deserialize = serialization.deserialize_keras_object
 
 def structural_axis_patcher(config, *args, **kwargs):
     if isinstance(config, dict):
-        # --- 1. CLEAN CORE LAYERS ---
         class_name = config.get("class_name")
         inner_cfg = config.get("config", {})
         
@@ -26,9 +27,8 @@ def structural_axis_patcher(config, *args, **kwargs):
             inner_cfg["axis"] = inner_cfg["axis"][0] if inner_cfg["axis"] else 2
             
         if class_name == "LSTM" and "time_major" in inner_cfg:
-            inner_cfg.pop("time_major", None) # Fixes the Keras 3 LSTM keyword crash
+            inner_cfg.pop("time_major", None)
 
-        # --- 2. CLEAN NESTED FUNCTIONAL MODEL LAYERS ---
         if isinstance(inner_cfg, dict) and "layers" in inner_cfg:
             for layer in inner_cfg["layers"]:
                 l_name = layer.get("class_name")
@@ -38,11 +38,10 @@ def structural_axis_patcher(config, *args, **kwargs):
                     l_cfg["axis"] = l_cfg["axis"][0] if l_cfg["axis"] else 2
                     
                 if l_name == "LSTM" and "time_major" in l_cfg:
-                    l_cfg.pop("time_major", None) # Fixes the nested LSTM keyword crash
+                    l_cfg.pop("time_major", None)
                         
     return original_deserialize(config, *args, **kwargs)
 
-# Bind our patch into the core execution lookup map of Keras 3
 serialization.deserialize_keras_object = structural_axis_patcher
 
 from fastapi import FastAPI, UploadFile, File, Form
@@ -55,12 +54,7 @@ import joblib
 import librosa
 import psycopg2
 
-# Global placeholders for the ML components
-model_a = None
-model_b = None
-yamnet_model = None
-scaler = None
-
+# --- 3. GLOBAL CONFIGURATIONS & PATHS ---
 MODEL_A_PATH = os.getenv("MODEL_A_PATH", "models/cough-classification-lstm/INPUT_model_path/lstm_model.keras")
 MODEL_B_PATH = os.getenv("MODEL_B_PATH", "models/cough-classification-cnn/INPUT_model_path/1dcnn_model.keras")
 SCALER_PATH = os.getenv("SCALER_PATH", "scaler_lstm_experiment.pkl")
@@ -71,13 +65,17 @@ CLASS_MAPPING = {
     2: "Ziekte 2",
 }
 
-# --- DATABASE CONFIGURATIE ---
 DB_HOST = os.getenv("DB_HOST", "postgres-service")  
 DB_NAME = os.getenv("DB_NAME", "sound_classification")  
 DB_USER = os.getenv("DB_USER", "mlops_user")            
 DB_PASSWORD = os.getenv("DB_PASSWORD", "mlops_password")
 
-# --- ASYNC LIFESPAN WORKER ---
+model_a = None
+model_b = None
+yamnet_model = None
+scaler = None
+
+# --- 4. ASYNC LIFESPAN WORKER ---
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
     global model_a, model_b, yamnet_model, scaler
@@ -87,32 +85,17 @@ async def lifespan(app: FastAPI):
     
     scaler = joblib.load(SCALER_PATH)
     
-    import zipfile
-    import json
-    
     def load_legacy_model_safely(model_path):
-        """
-        Extracts structural configs, builds a functional architectural framework skeleton,
-        and safely forces weights mapping by structural order while ignoring legacy name strings.
-        """
-        # 1. Open the archive file and isolate the structural layout text
         with zipfile.ZipFile(model_path, 'r') as archive:
-            # Check both common structural filenames used across Keras versions
             config_filename = "config.json" if "config.json" in archive.namelist() else "model.json"
             config_bytes = archive.read(config_filename)
             config_dict = json.loads(config_bytes.decode('utf-8'))
             
-        # 2. Run our global structural_axis_patcher utility directly over the raw dict mapping
         patched_config = structural_axis_patcher(config_dict)
-        
-        # 3. Instantiate a completely empty architectural model blueprint from the clean config
         model = keras.saving.deserialize_keras_object(patched_config)
-        
-        # 4. Bind the tensor weights data sequentially by layer order, completely ignoring naming mismatches
         model.load_weights(model_path, skip_mismatch=True, by_name=False)
         return model
 
-    # Load both models through our safeguard framework builder
     model_a = load_legacy_model_safely(MODEL_A_PATH)
     model_b = load_legacy_model_safely(MODEL_B_PATH)
 
@@ -123,7 +106,10 @@ async def lifespan(app: FastAPI):
     yield
     keras.backend.clear_session()
 
-# --- DATABASE LOGGING LOGIC ---
+# --- 5. INITIALIZE FASTAPI ---
+app = FastAPI(title="Medical Sound Classification API", lifespan=lifespan)
+
+# --- 6. ROUTES & HELPER LOGIC ---
 def log_to_db(age, gender, tb, wheezing, phlegm, asthma, fever, cold, pack_years, idx, label, scores, model_name):
     try:
         conn = psycopg2.connect(host=DB_HOST, database=DB_NAME, user=DB_USER, password=DB_PASSWORD)
@@ -156,7 +142,6 @@ def extract_embeddings_sequence(waveform):
     scores, embeddings, spectrogram = yamnet_model(waveform)
     return embeddings.numpy()
 
-# --- GEMEENSCHAPPELIJKE PREPROCESSING (HELPER) ---
 async def preprocess_inputs(age, gender, tb, wheezing, phlegm, asthma, fever, cold, pack_years, file):
     cold_missing = 1.0 if cold is None else 0.0
     cold_val = 0.0 if cold is None else cold
@@ -184,7 +169,6 @@ async def preprocess_inputs(age, gender, tb, wheezing, phlegm, asthma, fever, co
             
     return emb, meta_scaled
 
-# --- ENDPOINT 1: MODEL A ---
 @app.post("/predict/model-a")
 async def predict_model_a(
     age: float = Form(...), gender: float = Form(...), tbContactHistory: float = Form(...),
@@ -203,7 +187,6 @@ async def predict_model_a(
     log_to_db(age, gender, tbContactHistory, wheezingHistory, phlegmCough, familyAsthmaHistory, feverHistory, coldPresent, packYears, idx, label, kansen, "Model A")
     return {"voorspelling_index": idx, "voorspelling_label": label, "kansen_per_klasse": kansen, "model_gebruikt": "Model A"}
 
-# --- ENDPOINT 2: MODEL B ---
 @app.post("/predict/model-b")
 async def predict_model_b(
     age: float = Form(...), gender: float = Form(...), tbContactHistory: float = Form(...),

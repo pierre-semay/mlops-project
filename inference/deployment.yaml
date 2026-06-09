@@ -12,7 +12,7 @@ spec:
       labels:
         app: sound-api
       annotations:
-        build-id: "v6-skeleton-structural-load"
+        build-id: "v7-fixed-sequence-instantiation"
     spec:
       containers:
       - name: api-container
