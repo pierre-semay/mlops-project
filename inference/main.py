@@ -15,7 +15,7 @@ if 'keras.src.engine.functional' not in sys.modules:
     # Map de oude Functional klasse direct naar het Keras 3 Model
     functional_module.Functional = keras.Model
 
-# Sloop de verouderde 'time_major' parameter live uit de LSTM-laag van het Azure-model
+# Patch 1: Sloop de verouderde 'time_major' parameter live uit de LSTM-laag (Model B)
 original_lstm_from_config = keras.layers.LSTM.from_config
 @classmethod
 def patched_lstm_from_config(cls, config):
@@ -23,6 +23,14 @@ def patched_lstm_from_config(cls, config):
         del config['time_major']
     return original_lstm_from_config(config)
 keras.layers.LSTM.from_config = patched_lstm_from_config
+
+# Patch 2: Converteer 'axis' van een lijst naar een int voor BatchNormalization (Model A)
+original_bn_init = keras.layers.BatchNormalization.__init__
+def patched_bn_init(self, *args, **kwargs):
+    if 'axis' in kwargs and isinstance(kwargs['axis'], (list, tuple)):
+        kwargs['axis'] = kwargs['axis'][0]  # Zet [2] om naar 2
+    original_bn_init(self, *args, **kwargs)
+keras.layers.BatchNormalization.__init__ = patched_bn_init
 # ----------------------------------------------------------------------
 
 import joblib
