@@ -17,7 +17,9 @@ class DummyModule:
 
 sys.modules['keras.src.engine'] = DummyModule
 sys.modules['keras.src.engine.functional'] = DummyModule
-DummyModule.Functional = keras.models.Functional
+
+# Gefikst: we mappen de verwachting van het model naar de Keras 3 Model-klasse
+DummyModule.Functional = keras.Model 
 
 @keras.saving.register_keras_serializable(package="Custom")
 class CustomDense(keras.layers.Dense):
