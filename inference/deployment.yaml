@@ -11,8 +11,6 @@ spec:
     metadata:
       labels:
         app: sound-api
-      annotations:
-        build-id: "v13-graph-node-uniqueness-patch"
     spec:
       containers:
       - name: api-container
@@ -20,21 +18,6 @@ spec:
         imagePullPolicy: Always
         ports:
         - containerPort: 8000
-        env:
-        - name: MODEL_A_PATH
-          value: "/app/models/cough-classification-lstm/INPUT_model_path/lstm_model.keras"
-        - name: MODEL_B_PATH
-          value: "/app/models/cough-classification-cnn/INPUT_model_path/1dcnn_model.keras"
-        - name: SCALER_PATH
-          value: "/app/scaler_lstm_experiment.pkl"
-        - name: DB_HOST
-          value: "postgres-service"
-        - name: DB_USER
-          value: "mlops_user"
-        - name: DB_PASSWORD
-          value: "mlops_password"
-        - name: DB_NAME
-          value: "sound_classification"
 ---
 apiVersion: v1
 kind: Service

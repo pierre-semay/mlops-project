@@ -5,11 +5,10 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 1. Copy the models directory
-COPY ./models /app/models
-
-# 2. FIX: Copy main.py and all other application source code files
-COPY . .
+COPY main.py .
+COPY index.html .
+COPY best_model_lstm.keras .
+COPY scaler_lstm_experiment.pkl .
 
 EXPOSE 8000
 
