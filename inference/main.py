@@ -25,39 +25,16 @@ import joblib
 import librosa
 import psycopg2
 
-# Global placeholders for the ML components
-model_a = None
-model_b = None
-yamnet_model = None
-scaler = None
-
-MODEL_A_PATH = os.getenv("MODEL_A_PATH", "models/cough-classification-lstm/INPUT_model_path/lstm_model.keras")
-MODEL_B_PATH = os.getenv("MODEL_B_PATH", "models/cough-classification-cnn/INPUT_model_path/1dcnn_model.keras")
-SCALER_PATH = os.getenv("SCALER_PATH", "scaler_lstm_experiment.pkl")
-
-CLASS_MAPPING = {
-    0: "Gezond",
-    1: "Ziekte 1",
-    2: "Ziekte 2",
-}
-
-# --- DATABASE CONFIGURATIE ---
-DB_HOST = os.getenv("DB_HOST", "postgres-service")  
-DB_NAME = os.getenv("DB_NAME", "sound_classification")  
-DB_USER = os.getenv("DB_USER", "mlops_user")            
-DB_PASSWORD = os.getenv("DB_PASSWORD", "mlops_password")
-
 # --- CORE UTILITY: RUNTIME ZIP CONFIG REWRITER ---
 def load_and_patch_keras_model(filepath):
     """
-    Opens a .keras zip archive, reads its nested architecture config,
+    Opens a .keras zip archive, intercepts both structural config files,
     recursively normalizes array-wrapped BatchNormalization 'axis' values
     to integers, and reconstructs the functional model instance.
     """
     if not os.path.exists(filepath):
         raise IOError(f"Model file not found at: {filepath}")
 
-    # Read the full zip payload into a memory stream
     with open(filepath, 'rb') as f:
         zip_data = f.read()
 
@@ -68,31 +45,36 @@ def load_and_patch_keras_model(filepath):
             for item in z_in.infolist():
                 file_bytes = z_in.read(item.filename)
                 
-                # Intercept the configuration layer map file
-                if item.filename == "config.json":
-                    config_dict = json.loads(file_bytes.decode('utf-8'))
-                    
-                    def recursive_axis_unwrap(item_node):
-                        if isinstance(item_node, dict):
-                            # Target legacy BatchNormalization nodes
-                            if item_node.get("class_name") == "BatchNormalization":
-                                inner_cfg = item_node.get("config", {})
-                                if isinstance(inner_cfg.get("axis"), list):
-                                    inner_cfg["axis"] = inner_cfg["axis"][0] if inner_cfg["axis"] else 2
-                            for key, val in item_node.items():
-                                recursive_axis_unwrap(val)
-                        elif isinstance(item_node, list):
-                            for element in item_node:
-                                recursive_axis_unwrap(element)
-                    
-                    recursive_axis_unwrap(config_dict)
-                    file_bytes = json.dumps(config_dict).encode('utf-8')
+                # Intercept both possible structural configuration targets
+                if item.filename in ["config.json", "model.json"]:
+                    try:
+                        config_dict = json.loads(file_bytes.decode('utf-8'))
+                        
+                        def recursive_axis_unwrap(item_node):
+                            if isinstance(item_node, dict):
+                                if item_node.get("class_name") == "BatchNormalization":
+                                    inner_cfg = item_node.get("config", {})
+                                    if isinstance(inner_cfg.get("axis"), list):
+                                        inner_cfg["axis"] = inner_cfg["axis"][0] if inner_cfg["axis"] else 2
+                                for key, val in item_node.items():
+                                    recursive_axis_unwrap(val)
+                            elif isinstance(item_node, list):
+                                for element in item_node:
+                                    recursive_axis_unwrap(element)
+                        
+                        recursive_axis_unwrap(config_dict)
+                        file_bytes = json.dumps(config_dict).encode('utf-8')
+                    except Exception as json_err:
+                        print(f"Warning: Could not parse or patch {item.filename}: {json_err}")
                 
                 z_out.writestr(item, file_bytes)
 
     modified_zip_buffer.seek(0)
-    # Directly parse the patched structural stream via Keras 3
-    return keras.models.load_model(modified_zip_buffer, compile=False)
+    
+    # FIX: Wrap the memory stream in an active zipfile handle for Keras 3 to read natively
+    with zipfile.ZipFile(modified_zip_buffer, 'r') as patched_zip:
+        # Pass the open handle to load_model, completely bypassing the disk path string requirement
+        return keras.models.load_model(patched_zip, compile=False)
 
 
 # --- ASYNC LIFESPAN WORKER ---
@@ -105,7 +87,7 @@ async def lifespan(app: FastAPI):
     
     scaler = joblib.load(SCALER_PATH)
     
-    # Load and clean both structural paths using our utility function
+    # Run structural cleanup utility
     model_a = load_and_patch_keras_model(MODEL_A_PATH)
     model_b = load_and_patch_keras_model(MODEL_B_PATH)
 
