@@ -12,7 +12,7 @@ sys.modules['keras.src.engine'] = keras_src_mock
 import keras.src.models.functional as modern_functional
 sys.modules['keras.src.engine.functional'] = modern_functional
 
-# --- 2. GLOBAL DE-SERIALIZATION PATCHER ---
+# --- 2. GLOBAL VARIABLE NAME TRANSLATION PATCHER ---
 import keras.src.saving.serialization_lib as serialization
 original_deserialize = serialization.deserialize_keras_object
 
@@ -21,19 +21,33 @@ def structural_axis_patcher(config, *args, **kwargs):
         class_name = config.get("class_name")
         inner_cfg = config.get("config", {})
         
-        # A. Clean immediate class layer configurations
+        # Force strict suffix alignments for the Keras 3 runtime layer map
+        if class_name == "LSTM" or config.get("name") == "lstm_cell":
+            config["config"]["name"] = "lstm_cell_1"
+        if class_name == "Dense" or config.get("name") == "dense_1":
+            config["config"]["name"] = "dense_1"
+        if class_name == "Dense" or config.get("name") == "dense_2":
+            config["config"]["name"] = "dense_2"
+
         if class_name == "BatchNormalization" and isinstance(inner_cfg.get("axis"), list):
             inner_cfg["axis"] = inner_cfg["axis"][0] if inner_cfg["axis"] else 2
             
         if class_name == "LSTM" and "time_major" in inner_cfg:
             inner_cfg.pop("time_major", None)
 
-        # B. Clean nested layers mapped inside structural functional nodes
         if isinstance(inner_cfg, dict) and "layers" in inner_cfg:
             for layer in inner_cfg["layers"]:
                 l_name = layer.get("class_name")
                 l_cfg = layer.get("config", {})
                 
+                # Align nested layers
+                if l_name == "LSTM" or layer.get("name") == "lstm_cell":
+                    layer["config"]["name"] = "lstm_cell_1"
+                if l_name == "Dense" or layer.get("name") == "dense_1":
+                    layer["config"]["name"] = "dense_1"
+                if l_name == "Dense" or layer.get("name") == "dense_2":
+                    layer["config"]["name"] = "dense_2"
+
                 if l_name == "BatchNormalization" and isinstance(l_cfg.get("axis"), list):
                     l_cfg["axis"] = l_cfg["axis"][0] if l_cfg["axis"] else 2
                     
@@ -42,7 +56,6 @@ def structural_axis_patcher(config, *args, **kwargs):
                         
     return original_deserialize(config, *args, **kwargs)
 
-# Bind our patch into the core execution lookup map of Keras 3
 serialization.deserialize_keras_object = structural_axis_patcher
 
 from fastapi import FastAPI, UploadFile, File, Form
@@ -82,7 +95,7 @@ async def lifespan(app: FastAPI):
     
     scaler = joblib.load(SCALER_PATH)
     
-    # Standard loading works cleanly now since the global deserializer intercepts layout arrays
+    # Native loading works flawlessly now because our patch renames variables on the fly
     model_a = keras.models.load_model(MODEL_A_PATH, compile=False)
     model_b = keras.models.load_model(MODEL_B_PATH, compile=False)
 
@@ -96,9 +109,7 @@ async def lifespan(app: FastAPI):
 # --- 5. INITIALIZE FASTAPI ---
 app = FastAPI(title="Medical Sound Classification API", lifespan=lifespan)
 
-# ... Leave your endpoints and database logging code exactly as they are below ...
-
-# --- 7. ROUTES & HELPER LOGIC ---
+# --- 6. ROUTES & HELPER LOGIC ---
 def log_to_db(age, gender, tb, wheezing, phlegm, asthma, fever, cold, pack_years, idx, label, scores, model_name):
     try:
         conn = psycopg2.connect(host=DB_HOST, database=DB_NAME, user=DB_USER, password=DB_PASSWORD)
