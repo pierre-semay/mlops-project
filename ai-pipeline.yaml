@@ -20,7 +20,7 @@ outputs:
     mode: upload
 
 settings:
-  default_compute: azureml:cpu-brent-auto
+  default_compute: azureml:cli-project-compute
 
 jobs:
   preprocessing:

@@ -97,3 +97,4 @@ model.save(os.path.join(args.output_folder, "lstm_model.keras"))
 print("Model saved.")
 
 #rip schizo conversatie met mezelf, you will be missed.
+#no cap ong bro
