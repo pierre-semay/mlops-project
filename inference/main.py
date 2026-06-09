@@ -1,65 +1,8 @@
 # main.py
 import sys
 import os
-
-# --- MLOPS COMPATIBILITEITSBRUG TUSSEN KERAS 2 EN KERAS 3 ---
 from types import ModuleType
 import keras
-
-if 'keras.src.engine' not in sys.modules:
-    sys.modules['keras.src.engine'] = ModuleType('keras.src.engine')
-
-if 'keras.src.engine.functional' not in sys.modules:
-    functional_module = ModuleType('keras.src.engine.functional')
-    sys.modules['keras.src.engine.functional'] = functional_module
-    functional_module.Functional = keras.Model
-
-# Patch 1: Sloop de verouderde 'time_major' parameter live uit de LSTM-laag (Model B)
-original_lstm_from_config = keras.layers.LSTM.from_config
-@classmethod
-def patched_lstm_from_config(cls, config):
-    if 'time_major' in config:
-        del config['time_major']
-    return original_lstm_from_config(config)
-keras.layers.LSTM.from_config = patched_lstm_from_config
-
-# Patch 2: Converteer 'axis' van een lijst naar een int voor BatchNormalization (Model A)
-original_bn_init = keras.layers.BatchNormalization.__init__
-def patched_bn_init(self, *args, **kwargs):
-    if 'axis' in kwargs and isinstance(kwargs['axis'], (list, tuple)):
-        kwargs['axis'] = kwargs['axis'][0]  # Zet [2] om naar 2
-    original_bn_init(self, *args, **kwargs)
-keras.layers.BatchNormalization.__init__ = patched_bn_init
-
-# Patch 3: Filter specifieke Keras 2/3 parameters op basis van het type laag
-original_layer_from_config = keras.layers.Layer.from_config
-@classmethod
-def patched_layer_from_config(cls, config):
-    if 'build_config' in config:
-        del config['build_config']
-        
-    # Controleer of we met een Input omgeving te maken hebben
-    is_input_layer = (cls.__name__ == 'InputLayer' or config.get('name', '').startswith('input'))
-
-    if is_input_layer:
-        # Als het een input-laag is, mappen we de shape netjes naar Keras 3 formaat
-        if 'batch_input_shape' in config:
-            config['batch_shape'] = config.pop('batch_input_shape')
-        if 'sparse' in config:
-            del config['sparse']
-        if 'ragged' in config:
-            del config['ragged']
-    else:
-        # Voor álle andere lagen slopen we input-shapes weg om te voorkomen dat de basis Layer crasht
-        if 'batch_input_shape' in config:
-            del config['batch_input_shape']
-        if 'batch_shape' in config:
-            del config['batch_shape']
-            
-    return original_layer_from_config(config)
-keras.layers.Layer.from_config = patched_layer_from_config
-# ----------------------------------------------------------------------
-
 import joblib
 import librosa
 from fastapi.responses import HTMLResponse
