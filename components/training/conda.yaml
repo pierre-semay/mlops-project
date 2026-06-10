@@ -7,15 +7,16 @@ channels:
 dependencies:
   - python=3.10
   - numpy
-  - setuptools
+  - setuptools=68.2.2
   - pip
   - pip:
+      - tensorflow==2.13.0
+      - tensorflow-hub==0.16.1
+      - protobuf<5
       - librosa
       - soundfile
       - scipy
       - matplotlib
-      - tensorflow==2.13.0
-      - tensorflow-hub
       - scikit-learn
       - pandas
       - joblib

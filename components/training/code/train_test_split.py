@@ -1,8 +1,28 @@
+import sys
+import subprocess
+
+print("=== PYTHON ===")
+print(sys.version)
+
+print("=== SETUPTOOLS ===")
+subprocess.run([sys.executable, "-m", "pip", "show", "setuptools"])
+
+print("=== TF HUB ===")
+subprocess.run([sys.executable, "-m", "pip", "show", "tensorflow-hub"])
+
+import pkg_resources
+print("pkg_resources OK")
+
 import os
 import numpy as np
 import pandas as pd
 import librosa
-import tensorflow_hub as hub
+try:
+    import tensorflow_hub as hub
+    print("tensorflow_hub imported")
+except Exception as e:
+    print("tensorflow_hub import failed:", repr(e))
+    raise
 
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.model_selection import train_test_split

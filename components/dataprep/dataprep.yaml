@@ -3,7 +3,7 @@ $schema: https://azuremlschemas.azureedge.net/latest/commandComponent.schema.jso
 name: preprocessing_project
 display_name: Preprocessing cough data
 description: Segments and processes raw cough audio files.
-version: 8
+version: 9
 
 type: command
 
