@@ -1,11 +1,11 @@
 fastapi
 uvicorn
 python-multipart
-tensorflow-cpu
-tensorflow-hub
+tensorflow==2.13.0
+tensorflow-hub==0.16.1
 librosa
 numpy
 scikit-learn>=1.8.0
 joblib
 psycopg2-binary
-setuptools<70.0.0
+setuptools=68.2.2
