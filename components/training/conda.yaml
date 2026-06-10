@@ -11,12 +11,10 @@ dependencies:
     - scipy
     - matplotlib
     - tensorflow==2.17.0
-    - tensorflow-hub  # required for YAMNet
+    - tensorflow-hub==0.16.1  # ← pin this version
     - scikit-learn
     - pandas
     - joblib
     - azure-ai-ml
     - mlflow
     - azureml-mlflow
-
-#please werk
