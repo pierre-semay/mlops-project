@@ -2,7 +2,6 @@ import os
 import numpy as np
 import pandas as pd
 import librosa
-import tensorflow_hub as hub
 
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.model_selection import train_test_split
