@@ -1,4 +1,15 @@
-import sys  
+import sys
+import numpy as np
+
+# --- MLOPS MONKEY PATCH FOR NUMPY 2.0 SCALER COMPATIBILITY ---
+# We importeren de daadwerkelijke 1.x multiarray module
+import numpy.core.multiarray as multiarray
+
+# We mappen zowel de hoofdmodule als de specifieke multiarray submodule naar de 2.x verwachting
+sys.modules['numpy._core'] = np
+sys.modules['numpy._core.multiarray'] = multiarray
+# --------------------------------------------------------------
+
 import os
 import joblib
 import librosa
