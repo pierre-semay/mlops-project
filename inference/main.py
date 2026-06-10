@@ -35,7 +35,7 @@ keras.saving.get_custom_objects()['Dense'] = CustomDense
 app = FastAPI(title="Medical Sound Classification API")
 
 # Paden naar de modellen (Linux-stijl forward slashes voor Docker!)
-MODEL_A_PATH = "mlOps/project-v2/mlops-project/inference/models/cough-classification-lstm/INPUT_model_path/lstm_model.keras"
+MODEL_A_PATH = "models/cough-classification-lstm/INPUT_model_path/lstm_model.keras"
 MODEL_B_PATH = "best_model_lstm_1.keras"  
 SCALER_PATH = "scaler_lstm_experiment.pkl"
 
