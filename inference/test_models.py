@@ -4,8 +4,8 @@ import tensorflow as tf
 
 # Load both models
 print("Loading models...")
-lstm_model = tf.keras.models.load_model("models/cough-classification-lstm/INPUT_model_path/lstm_model.keras")
-cnn_model  = tf.keras.models.load_model("models/cough-classification-cnn/INPUT_model_path/1dcnn_model.keras")
+lstm_model = tf.keras.models.load_model("models/cough-classification-lstm/INPUT_model_path")
+cnn_model  = tf.keras.models.load_model("models/cough-classification-cnn/INPUT_model_path")
 print("Models loaded successfully")
 
 # Load label encoder
