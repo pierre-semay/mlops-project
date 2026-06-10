@@ -2,7 +2,7 @@ $schema: https://azuremlschemas.azureedge.net/latest/commandComponent.schema.jso
 
 name: train_test_split
 display_name: Train Test Split
-version: 2
+version: 4
 
 type: command
 
@@ -17,6 +17,6 @@ outputs:
 
 code: ./code
 
-environment: azureml:project-env:13
+environment: azureml:project-env@latest
 
 command: python train_test_split.py --data_dir ${{inputs.data_dir}} --output_folder ${{outputs.output_folder}}
