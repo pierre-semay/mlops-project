@@ -101,3 +101,4 @@ print("Model saved.")
 #m
 #mhm
 #normaal gezien is dit de laatste keer
+#het was niet de laatste keer
