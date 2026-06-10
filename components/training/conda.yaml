@@ -1,21 +1,24 @@
 name: project-env
+
 channels:
   - conda-forge
   - defaults
+
 dependencies:
   - python=3.10
   - numpy
+  - setuptools
+  - pip
   - pip:
-    - librosa
-    - soundfile
-    - scipy
-    - matplotlib
-    - tensorflow==2.13.0
-    - tensorflow-hub
-    - scikit-learn
-    - pandas
-    - joblib
-    - azure-ai-ml
-    - mlflow        
-    - azureml-mlflow 
-#rollback
+      - librosa
+      - soundfile
+      - scipy
+      - matplotlib
+      - tensorflow==2.13.0
+      - tensorflow-hub
+      - scikit-learn
+      - pandas
+      - joblib
+      - azure-ai-ml
+      - mlflow
+      - azureml-mlflow
