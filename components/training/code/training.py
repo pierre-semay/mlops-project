@@ -93,7 +93,7 @@ def fit_model_LSTM(window_size_audio=4, window_size_meta=10):
 model, history, val_acc, macro_f1, y_pred = fit_model_LSTM()
 
 os.makedirs(args.output_folder, exist_ok=True)
-model.save(os.path.join(args.output_folder, "lstm_model.keras"))
+model.save(os.path.join(args.output_folder, "lstm_model.keras"), save_format="keras")
 print("Model saved.")
 
 #rip schizo conversatie met mezelf, you will be missed.
