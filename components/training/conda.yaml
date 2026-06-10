@@ -10,11 +10,12 @@ dependencies:
     - soundfile
     - scipy
     - matplotlib
-    - tensorflow==2.16.1
-    - tensorflow-hub==0.16.1
+    - tensorflow==2.13.0
+    - tensorflow-hub
     - scikit-learn
     - pandas
     - joblib
     - azure-ai-ml
-    - mlflow
-    - azureml-mlflow
+    - mlflow        
+    - azureml-mlflow 
+#rollback
