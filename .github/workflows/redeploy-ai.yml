@@ -25,11 +25,11 @@ jobs:
 
       - name: Download latest LSTM model
         run: |
-          az ml model download --name cough-classification-lstm --version $(az ml model list --name cough-classification-lstm --query "[0].version" -o tsv) --download-path ./inference/models
-
+          az ml model download --name cough-classification-lstm --version latest --download-path ./inference/models
+          
       - name: Download latest 1D CNN model
         run: |
-          az ml model download --name cough-classification-cnn --version $(az ml model list --name cough-classification-cnn --query "[0].version" -o tsv) --download-path ./inference/models
+          az ml model download --name cough-classification-cnn --version latest --download-path ./inference/models
 
       - name: Push new model to github
         run: |
