@@ -8,4 +8,4 @@ numpy
 scikit-learn>=1.8.0
 joblib
 psycopg2-binary
-setuptools=68.2.2
+setuptools==68.2.2
