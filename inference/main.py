@@ -1,4 +1,11 @@
-import sys  
+import sys
+import numpy as np
+
+# --- MLOPS MONKEY PATCH FOR NUMPY 2.0 SCALER COMPATIBILITY ---
+# Fop joblib/pickle wanneer er gezocht wordt naar NumPy 2.x structuren in een NumPy 1.x runtime
+sys.modules['numpy._core'] = np
+# --------------------------------------------------------------
+
 import os
 import joblib
 import librosa
@@ -12,15 +19,6 @@ import keras
 import psycopg2
 
 # --- MLOPS TRICK: BYPASS KERAS ARCHITECTURE VERSION MISMATCHES ---
-class DummyModule:
-    pass
-
-sys.modules['keras.src.engine'] = DummyModule
-sys.modules['keras.src.engine.functional'] = DummyModule
-
-# Gefikst: we mappen de verwachting van het model naar de Keras 3 Model-klasse
-DummyModule.Functional = keras.Model 
-
 @keras.saving.register_keras_serializable(package="Custom")
 class CustomDense(keras.layers.Dense):
     @classmethod
