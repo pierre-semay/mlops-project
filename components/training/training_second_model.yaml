@@ -3,7 +3,7 @@ $schema: https://azuremlschemas.azureedge.net/latest/commandComponent.schema.jso
 name: training_second_model_project
 display_name: Training a secondary AI model
 description: Trains an AI model by inputting a lot of training and testing data.
-version: 5
+version: 6
 
 type: command
 

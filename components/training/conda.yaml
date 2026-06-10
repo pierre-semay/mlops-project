@@ -10,8 +10,8 @@ dependencies:
     - soundfile
     - scipy
     - matplotlib
-    - tensorflow==2.17.0
-    - tensorflow-hub==0.16.1  # ← pin this version
+    - tensorflow==2.16.1
+    - tensorflow-hub==0.16.1
     - scikit-learn
     - pandas
     - joblib
