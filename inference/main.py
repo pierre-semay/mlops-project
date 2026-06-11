@@ -55,8 +55,8 @@ yamnet_model = hub.load('https://tfhub.dev/google/yamnet/1')
 
 CLASS_MAPPING = {
     0: "Gezond",
-    1: "Ziekte 1",
-    2: "Ziekte 2",
+    1: "Asthma",
+    2: "COPD",
 }
 
 # --- DATABASE CONFIGURATIE ---
