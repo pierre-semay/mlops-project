@@ -99,5 +99,3 @@ model.save(args.output_folder)
 joblib.dump(le, os.path.join(args.output_folder, "label_encoder.pkl"))
 
 print("Model saved.")
-
-#test
