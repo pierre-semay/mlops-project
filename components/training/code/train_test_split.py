@@ -1,4 +1,4 @@
-import sys
+import sys #Dit was code om te controleren of de juiste versies van python en tensorflow hub geïnstalleerd waren, aangezien ik daar problemen mee had. Deze code is niet meer nodig, maar ik laat het staan voor het geval dat iemand anders er ook problemen mee heeft.
 import subprocess
 
 print("=== PYTHON ===")
@@ -174,8 +174,3 @@ joblib.dump(
 
 print("Train/validation split saved.")
 
-#test 3
-#test 5
-#test 7
-#test 9
-#test 11

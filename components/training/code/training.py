@@ -88,7 +88,7 @@ def fit_model_LSTM(window_size_audio=4, window_size_meta=10):
 
     print(classification_report(y_val, y_pred, target_names=le.classes_.astype(str)))
     
-    return model, history, val_acc, macro_f1, y_pred #TODO is dat hier allemaal nodig
+    return model, history, val_acc, macro_f1, y_pred #Dit heb ik laten staan uit ons project, op zich is alleen het model nodig.
 
 model, history, val_acc, macro_f1, y_pred = fit_model_LSTM()
 
@@ -99,9 +99,4 @@ model.save(args.output_folder)
 joblib.dump(le, os.path.join(args.output_folder, "label_encoder.pkl"))
 
 print("Model saved.")
-
-#please wees juist
-#frankrijk suckt
-#test
-#test 2
 

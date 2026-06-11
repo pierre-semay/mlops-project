@@ -93,7 +93,7 @@ def fit_model_1DCNN(window_size_audio=4, window_size_meta=10):
     print(f"-1DCNN - Val Accuracy: {val_acc:.4f} | Macro F1: {macro_f1:.4f}")
     print(classification_report(y_val, y_pred, target_names=le.classes_.astype(str)))
     
-    return model, history, val_acc, macro_f1, y_pred
+    return model, history, val_acc, macro_f1, y_pred #Dit heb ik laten staan uit ons project, op zich is alleen het model nodig.
 
 model, history, val_acc, macro_f1, y_pred = fit_model_1DCNN()
 
