@@ -23,11 +23,9 @@ import psycopg2
 
 # --- MLOPS MONKEY PATCH FOR NUMPY 2.0 SCALER COMPATIBILITY ---
 sys.modules['numpy._core'] = np
-# --------------------------------------------------------------
 
 app = FastAPI(title="Medical Sound Classification API")
 
-# Mappenstructuur exact overgenomen van het screenshot van je teamgenoot!
 MODEL_A_PATH = "models/cough-classification-lstm/INPUT_model_path"
 MODEL_B_PATH = "models/cough-classification-cnn/INPUT_model_path"  
 SCALER_PATH = "scaler_lstm_experiment.pkl"
