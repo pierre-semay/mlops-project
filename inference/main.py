@@ -12,6 +12,7 @@ import tensorflow as tf
 import tensorflow_hub as hub
 from fastapi import FastAPI, UploadFile, File, Form
 import psycopg2
+sys.modules['numpy._core'] = np
 
 app = FastAPI(title="Medical Sound Classification API")
 
