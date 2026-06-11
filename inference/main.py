@@ -1,18 +1,30 @@
 import sys
+import sys
+import types
+
+# --- ULTIEME MLOPS MONKEY PATCH VOOR NUMPY 2.0 SCALER COMPATIBILITY ---
+# 1. Maak een virtuele module aan voor 'numpy._core'
+numpy_core = types.ModuleType("numpy._core")
+sys.modules["numpy._core"] = numpy_core
+
+# 2. Importeer de echte NumPy 1.x multiarray en hang hem handmatig in onze virtuele module
 import numpy as np
-import numpy.core.multiarray as multiarray
-sys.modules['numpy._core'] = np
+import numpy.core.multiarray as ma
+numpy_core.multiarray = ma
+
+# 3. Registreer ook het volledige subpad in sys.modules zodat pickle het direct vindt
+sys.modules["numpy._core.multiarray"] = ma
+# ---------------------------------------------------------------------
+
 import os
 import joblib
 import librosa
 from fastapi.responses import HTMLResponse
-import numpy as np
 from pydantic import BaseModel
 import tensorflow as tf
 import tensorflow_hub as hub
 from fastapi import FastAPI, UploadFile, File, Form
 import psycopg2
-sys.modules['numpy._core'] = np
 
 app = FastAPI(title="Medical Sound Classification API")
 
