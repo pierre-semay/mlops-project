@@ -8,7 +8,7 @@ data:
         listen 80;
         server_name localhost;
 
-        # Stuur ALLES blindelings door naar FastAPI. 
+        # Stuurt ALLES blindelings door naar FastAPI. 
         # FastAPI handelt zelf de homepage (/) en de (/predict) af.
         location / {
             proxy_pass http://sound-api-service:8000;

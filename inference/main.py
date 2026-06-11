@@ -1,15 +1,7 @@
 import sys
 import numpy as np
-
-# --- MLOPS MONKEY PATCH FOR NUMPY 2.0 SCALER COMPATIBILITY ---
-# We importeren de daadwerkelijke 1.x multiarray module
 import numpy.core.multiarray as multiarray
-
-# We mappen zowel de hoofdmodule als de specifieke multiarray submodule naar de 2.x verwachting
 sys.modules['numpy._core'] = np
-sys.modules['numpy._core.multiarray'] = multiarray
-# --------------------------------------------------------------
-
 import os
 import joblib
 import librosa
@@ -20,9 +12,6 @@ import tensorflow as tf
 import tensorflow_hub as hub
 from fastapi import FastAPI, UploadFile, File, Form
 import psycopg2
-
-# --- MLOPS MONKEY PATCH FOR NUMPY 2.0 SCALER COMPATIBILITY ---
-sys.modules['numpy._core'] = np
 
 app = FastAPI(title="Medical Sound Classification API")
 
@@ -59,7 +48,6 @@ CLASS_MAPPING = {
     2: "COPD",
 }
 
-# --- DATABASE CONFIGURATIE ---
 DB_HOST = "postgres-service"  
 DB_NAME = "sound_classification"  
 DB_USER = "mlops_user"            
